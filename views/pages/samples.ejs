@@ -1,0 +1,39 @@
+<section id="page-samples" class="page">
+  <h1>Beispieldaten generieren</h1>
+  <p>Erstellt realistische Beispiel-Kontoauszuege (STA/MT940 oder C53/CAMT.053) mit zufaellig ausgewaehlten Umsaetzen aus 250 Mustertransaktionen.</p>
+  <div class="samples-form">
+    <label>Format:
+      <select id="samples-format">
+        <option value="sta">STA (MT940)</option>
+        <option value="c53">C53 (CAMT.053 XML)</option>
+      </select>
+    </label>
+    <label>Anzahl Umsaetze (1&ndash;250):
+      <div class="field-with-btn" style="margin-top:0.3rem">
+        <input type="range" id="samples-count-slider" min="1" max="250" value="10" style="flex:1;max-width:none;padding:0;border:none;box-shadow:none;background:transparent">
+        <input type="number" id="samples-count-num" min="1" max="250" value="10" style="width:70px;max-width:70px;flex:none">
+      </div>
+    </label>
+    <div id="samples-date-row" style="display:none">
+      <label>Datum von: <input type="date" id="samples-date-from"></label>
+      <label>Datum bis: <input type="date" id="samples-date-to"></label>
+    </div>
+    <details style="margin-bottom:0.75rem">
+      <summary style="cursor:pointer;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem">Optionale Kontodetails</summary>
+      <label>IBAN des Kontos: <input type="text" id="samples-iban" placeholder="DE89370400440532013000" maxlength="34"></label>
+      <label>BIC der Bank: <input type="text" id="samples-bic" placeholder="COBADEFFXXX" maxlength="11"></label>
+      <label>Kontoinhaber: <input type="text" id="samples-acname" placeholder="Max Mustermann" maxlength="70"></label>
+      <label>Jahr: <input type="number" id="samples-year" placeholder="2024" value="2024" min="2000" max="2099" style="max-width:120px"></label>
+      <label>Eroeffnungssaldo (EUR): <input type="number" id="samples-openbal" placeholder="10000.00" step="0.01" style="max-width:160px"></label>
+    </details>
+    <button id="samples-gen-btn" class="btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline-block;vertical-align:middle;margin-right:0.25rem">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7,10 12,15 17,10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Datei generieren &amp; herunterladen
+    </button>
+  </div>
+  <div id="samples-result" style="margin-top:1rem"></div>
+</section>

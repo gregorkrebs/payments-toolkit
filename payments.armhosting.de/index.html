@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payments Toolkit</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💳</text></svg>"/>
+  <link rel="stylesheet" href="/css/layout.css">
+  <script>(function(){var t=localStorage.getItem('payments-theme')||'system';if(t==='system'){t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);})();</script>
+</head>
+<body>
+  <header id="main-header">
+    <div class="header-inner">
+      <a href="#home" class="site-title"><em>Payments</em> Toolkit</a>
+      <nav id="main-nav">
+        <a href="#home"       data-page="home">Startseite</a>
+        <a href="#validate"   data-page="validate">Validierung</a>
+        <a href="#statement"  data-page="statement">Auszuege</a>
+        <a href="#convert"    data-page="convert">Konvertierung</a>
+        <a href="#create"     data-page="create">Erstellen</a>
+        <a href="#tools"      data-page="tools">Tools</a>
+        <a href="#samples"    data-page="samples">Beispieldaten</a>
+        <a href="#packer"    data-page="packer">C53 Packer</a>
+        <a href="#identities" data-page="identities" id="identities">Identitäten</a>
+        <a href="#merge"      data-page="merge">Zahlungen zusammenfassen</a>
+      </nav>
+      <button id="theme-toggle" class="theme-toggle" title="Farbschema wechseln" aria-label="Farbschema wechseln">
+        <span id="theme-icon">&#9681;</span>
+        <span id="theme-label">System</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="app">
+    <!-- ============================================================ HOME ============================================================ -->
+    <section id="page-home" class="page active">
+      <h1>Payments Toolkit</h1>
+      <p>Zahlungsdateien pruefen, erstellen, konvertieren und Kontoauszuege analysieren. Unterstuetzt SEPA, DTAZV und ISO-20022-Formate fuer MultiCash-Nutzer.</p>
+      <div class="card-grid" id="home-cards"></div>
+    </section>
+
+    <!-- ============================================================ VALIDATE ============================================================ -->
+    <section id="page-validate" class="page">
+      <h1>Zahlungsdatei-Validierung</h1>
+      <p>PAIN-XML (001/002/008) und DTAZV-Dateien (CCT, CDD, CDB, CCU, CTV, AZV, AXZ) pruefen.</p>
+      <div id="validate-upload-area" class="upload-area">
+        <p>Datei hier ablegen oder klicken zum Auswaehlen</p>
+        <p class="upload-hint">Akzeptiert: .xml, .sta, .txt (DTAZV)</p>
+        <input type="file" id="validate-file-input" accept=".xml,.txt,.sta,.pain">
+      </div>
+      <div id="validate-result"></div>
+    </section>
+
+    <!-- ============================================================ STATEMENT ============================================================ -->
+    <section id="page-statement" class="page">
+      <h1>Kontoauszuege</h1>
+      <p>STA (MT940), C53 (CAMT.053) oder C53-Archiv-XML einlesen, anzeigen und exportieren.</p>
+      <div id="statement-upload-area" class="upload-area">
+        <p>Datei hier ablegen oder klicken zum Auswaehlen</p>
+        <p class="upload-hint">Akzeptiert: .sta, .mt940, .xml, .c53, .zip</p>
+        <input type="file" id="statement-file-input" accept=".sta,.mt940,.xml,.c53,.zip,.txt">
+      </div>
+      <div id="statement-controls" style="display:none;justify-content: space-around;padding: 12px 0px;align-items: center;">
+        <button id="stmt-export-csv-btn">CSV exportieren</button>
+        <button id="stmt-export-pdf-btn">PDF exportieren</button>
+        <select id="stmt-select"></select>
+      </div>
+      <div id="statement-result"></div>
+      <div id="statement-charts" style="display:none">
+        <h2>Grafische Auswertung</h2>
+        <div class="chart-row">
+          <div class="chart-box"><canvas id="chart-debitcredit"></canvas></div>
+          <div class="chart-box"><canvas id="chart-balance"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ CONVERT ============================================================ -->
+    <section id="page-convert" class="page">
+      <h1>Konvertierung</h1>
+      <p>Formate ineinander umwandeln: STA &harr; C53, PAIN v03 &harr; v09, usw.</p>
+      <div id="convert-upload-area" class="upload-area">
+        <p>Quelldatei hier ablegen oder klicken</p>
+        <input type="file" id="convert-file-input" accept=".xml,.sta,.mt940,.zip,.c53,.txt">
+      </div>
+      <div id="convert-options" style="display:none">
+        <label>Zielformat:
+          <select id="convert-target-select"></select>
+        </label>
+        <button id="convert-run-btn">Konvertieren &amp; Herunterladen</button>
+      </div>
+      <div id="convert-result"></div>
+    </section>
+
+    <!-- ============================================================ CREATE ============================================================ -->
+    <section id="page-create" class="page">
+      <h1>Zahlungsdatei erstellen</h1>
+      <p>Auftragsart und Regelwerk auswaehlen, Felder ausfuellen, Datei generieren.</p>
+      <div id="creator-step1">
+        <label>Kategorie:
+          <select id="creator-category-select">
+            <option value="">-- bitte waehlen --</option>
+            <option value="SEPA">SEPA</option>
+            <option value="DTAZV">DTAZV</option>
+          </select>
+        </label>
+        <label id="creator-ordertype-label" style="display:none">Auftragsart:
+          <select id="creator-ordertype-select"></select>
+        </label>
+        <label id="creator-ruleset-label" style="display:none">Regelwerk / Version:
+          <select id="creator-ruleset-select"></select>
+        </label>
+        <button id="creator-start-btn" disabled>Formular oeffnen</button>
+      </div>
+      <div id="creator-form-area"></div>
+      <div id="creator-preview" style="display:none">
+        <h2>XML-Vorschau</h2>
+        <pre id="creator-xml-preview"></pre>
+        <button id="creator-download-btn">XML herunterladen</button>
+        <button id="creator-validate-btn">Direkt validieren</button>
+      </div>
+      <div id="creator-validate-result"></div>
+    </section>
+
+    <!-- ============================================================ TOOLS ============================================================ -->
+    <section id="page-tools" class="page">
+      <h1>Hilfstools</h1>
+      <div class="tabs-secondary" id="tools-tabs">
+        <button class="tab-btn active" data-tool="iban-validate">IBAN pruefen</button>
+        <button class="tab-btn" data-tool="iban-calculate">IBAN berechnen</button>
+        <button class="tab-btn" data-tool="iban-de">DE: BLZ + Konto</button>
+        <button class="tab-btn" data-tool="iban-breakdown">IBAN zerlegen</button>
+        <button class="tab-btn" data-tool="iban-batch">Batch-Pruefung</button>
+      </div>
+
+      <div id="tool-iban-validate" class="tool-panel active">
+        <h2>IBAN pruefen</h2>
+        <label>IBAN: <input type="text" id="iban-validate-input" placeholder="z.B. DE89370400440532013000" maxlength="34"></label>
+        <button id="iban-validate-btn">Pruefen</button>
+        <div id="iban-validate-result"></div>
+
+        <h3 style="margin-top: 2rem;">BLZ / BIC / Banksuche</h3>
+        <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 0.5rem;">Finde deutsche Banken schnell per Kurzbezeichnung, Bankleitzahl oder BIC (ab 3 Zeichen).</p>
+        <div style="position: relative;">
+          <input type="text" id="bank-search-input" placeholder="Suchbegriff eingeben..." autocomplete="off">
+          <div id="bank-search-results" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:100; background:var(--bg); border:1px solid var(--border); box-shadow:0 4px 6px rgba(0,0,0,0.1); max-height:250px; overflow-y:auto; border-radius:4px; margin-top:4px;"></div>
+        </div>
+        <div id="bank-search-result" style="margin-top:1rem;"></div>
+      </div>
+
+      <div id="tool-iban-calculate" class="tool-panel">
+        <h2>IBAN berechnen (Land + BBAN)</h2>
+        <label>Land (2 Buchstaben): <input type="text" id="iban-calc-country" placeholder="DE" maxlength="2"></label>
+        <label>BBAN: <input type="text" id="iban-calc-bban" placeholder="370400440532013000" maxlength="32"></label>
+        <button id="iban-calc-btn">Berechnen</button>
+        <div id="iban-calc-result"></div>
+      </div>
+
+      <div id="tool-iban-de" class="tool-panel">
+        <h2>Deutsche IBAN berechnen (BLZ + Kontonummer)</h2>
+        <label>BLZ (8 Ziffern): <input type="text" id="iban-de-blz" placeholder="37040044" maxlength="8"></label>
+        <label>Kontonummer (bis 10 Ziffern): <input type="text" id="iban-de-konto" placeholder="532013000" maxlength="10"></label>
+        <button id="iban-de-btn">IBAN berechnen</button>
+        <div id="iban-de-result"></div>
+      </div>
+
+      <div id="tool-iban-breakdown" class="tool-panel">
+        <h2>IBAN zerlegen</h2>
+        <label>IBAN: <input type="text" id="iban-breakdown-input" placeholder="DE89370400440532013000" maxlength="34"></label>
+        <button id="iban-breakdown-btn">Zerlegen</button>
+        <div id="iban-breakdown-result"></div>
+      </div>
+
+      <div id="tool-iban-batch" class="tool-panel">
+        <h2>Batch IBAN-Pruefung</h2>
+        <label>IBANs (eine pro Zeile, max 500):
+          <textarea id="iban-batch-input" rows="10" placeholder="DE89370400440532013000&#10;AT611904300234573201&#10;CH5604835012345678009"></textarea>
+        </label>
+        <button id="iban-batch-btn">Alle pruefen</button>
+        <div id="iban-batch-result"></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ SAMPLES ============================================================ -->
+    <section id="page-samples" class="page">
+      <h1>Beispieldaten generieren</h1>
+      <p>Erstellt realistische Beispiel-Kontoauszuege (STA/MT940 oder C53/CAMT.053) mit zufaellig ausgewaehlten Umsaetzen aus 250 Mustertransaktionen.</p>
+      <div class="samples-form">
+        <label>Format:
+          <select id="samples-format">
+            <option value="sta">STA (MT940)</option>
+            <option value="c53">C53 (CAMT.053 XML)</option>
+          </select>
+        </label>
+        <label>Anzahl Umsaetze (1&ndash;250):
+          <div class="field-with-btn" style="margin-top:0.3rem">
+            <input type="range" id="samples-count-slider" min="1" max="250" value="10" style="flex:1;max-width:none;padding:0;border:none;box-shadow:none;background:transparent">
+            <input type="number" id="samples-count-num" min="1" max="250" value="10" style="width:70px;max-width:70px;flex:none">
+          </div>
+        </label>
+        <div id="samples-date-row" style="display:none">
+          <label>Datum von: <input type="date" id="samples-date-from"></label>
+          <label>Datum bis: <input type="date" id="samples-date-to"></label>
+        </div>
+        <details style="margin-bottom:0.75rem">
+          <summary style="cursor:pointer;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem">Optionale Kontodetails</summary>
+          <label>IBAN des Kontos: <input type="text" id="samples-iban" placeholder="DE89370400440532013000" maxlength="34"></label>
+          <label>BIC der Bank: <input type="text" id="samples-bic" placeholder="COBADEFFXXX" maxlength="11"></label>
+          <label>Kontoinhaber: <input type="text" id="samples-acname" placeholder="Max Mustermann" maxlength="70"></label>
+          <label>Jahr: <input type="number" id="samples-year" placeholder="2024" value="2024" min="2000" max="2099" style="max-width:120px"></label>
+          <label>Eroeffnungssaldo (EUR): <input type="number" id="samples-openbal" placeholder="10000.00" step="0.01" style="max-width:160px"></label>
+        </details>
+        <button id="samples-gen-btn" class="btn-primary">&#9660; Datei generieren &amp; herunterladen</button>
+      </div>
+      <div id="samples-result" style="margin-top:1rem"></div>
+    </section>
+
+    <!-- ============================================================ PACKER ============================================================ -->
+    <section id="page-packer" class="page">
+      <h1>C53 Packer</h1>
+      <p>Mehrere CAMT.053 XML-Dateien auswaehlen und zu einer einzigen <code>.C53</code> Archivdatei (ZIP) zusammenpacken.</p>
+      <div id="packer-drop-zone" class="upload-area" style="cursor:pointer">
+        <p>XML-Dateien hier ablegen oder klicken zum Auswaehlen</p>
+        <p class="upload-hint">Nur .xml Dateien, max. 50 Dateien, max. 5 MB je Datei</p>
+        <input type="file" id="packer-file-input" accept=".xml" multiple style="display:none">
+      </div>
+      <div id="packer-file-list" style="margin-top:1rem"></div>
+      <div style="margin-top:0.75rem;display:flex;gap:0.75rem;flex-wrap:wrap">
+        <button id="packer-pack-btn" class="btn-primary" disabled>&#128230; C53 Archiv erstellen &amp; herunterladen</button>
+        <button id="packer-clear-btn" disabled>Liste leeren</button>
+      </div>
+      <div id="packer-result" style="margin-top:1rem"></div>
+    </section>
+
+    <!-- ============================================================ IDENTITIES ============================================================ -->
+    <section id="page-identities" class="page">
+      <h1>Identitäten generieren</h1>
+      <p>Realistische Testidentitäten mit Bankdaten, Adresse und Kontaktdaten generieren.</p>
+
+      <div class="identities-controls">
+        <div class="identities-controls-row">
+          <label>Anzahl (1–200):
+            <div class="field-with-btn" style="margin-top:0.3rem">
+              <input type="range" id="identities-slider" min="1" max="200" value="3" style="flex:1;max-width:none;padding:0;border:none;box-shadow:none;background:transparent">
+              <input type="number" id="identities-count" min="1" max="200" value="3" style="width:70px;max-width:70px;flex:none">
+            </div>
+          </label>
+          <div class="identities-view-toggle">
+            <button id="identities-view-card" class="view-btn active" title="Karten-Ansicht">&#9638; Karten</button>
+            <button id="identities-view-table" class="view-btn" title="Tabellen-Ansicht">&#9776; Tabelle</button>
+          </div>
+        </div>
+        <div class="identities-controls-row" style="gap:0.5rem;flex-wrap:wrap">
+          <button id="identities-gen-btn" class="btn-primary">&#9660; Generieren</button>
+          <button id="identities-copy-json-btn" class="btn-secondary" disabled>&#128203; Alle als JSON kopieren</button>
+          <button id="identities-download-btn" class="btn-secondary" disabled>&#8659; JSON herunterladen</button>
+        </div>
+      </div>
+
+      <div id="identities-meta" style="display:none" class="identities-meta"></div>
+      <div id="identities-result"></div>
+    </section>
+
+    <!-- ============================================================ MERGE ============================================================ -->
+    <section id="page-merge" class="page">
+      <h1>Zahlungen zusammenfassen</h1>
+      <p>Mehrere Zahlungsdateien (CCT/CCU) zusammenfassen und als einheitliche pain.001.003.03 exportieren.</p>
+      
+      <div id="merge-upload-area" class="upload-area">
+        <p>Zahlungsdateien hier ablegen oder klicken zum Auswaehlen</p>
+        <p class="upload-hint">Akzeptiert: .xml (pain.001 CCT/CCU)</p>
+        <input type="file" id="merge-file-input" accept=".xml" multiple>
+      </div>
+      
+      <div id="merge-file-list" style="margin-top:1rem"></div>
+      
+      <div id="merge-controls" style="display:none; margin-top:1rem;">
+        <details style="margin-bottom:1rem">
+          <summary style="cursor:pointer;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem">Globale Parameter ueberschreiben</summary>
+          <div style="padding:1rem; background:var(--muted); border-radius:var(--r); margin-top:0.5rem">
+            <label>Name: <input type="text" id="merge-name" placeholder="Max Mustermann"></label>
+            <label>IBAN: <input type="text" id="merge-iban" placeholder="DE89370400440532013000" maxlength="34"></label>
+            <label>BIC: <input type="text" id="merge-bic" placeholder="COBADEFFXXX" maxlength="11"></label>
+            <label>Valuta: <input type="date" id="merge-valuta"></label>
+          </div>
+        </details>
+        
+        <button id="merge-export-btn" class="btn-primary">&#8659; Zusammengefasste Datei exportieren</button>
+      </div>
+      
+      <div id="merge-result" style="margin-top:1rem"></div>
+    </section>
+
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="/js/ui_helpers.js"></script>
+  <script src="/js/chart_helpers.js"></script>
+  <script src="/js/page_home.js"></script>
+  <script src="/js/page_validation.js"></script>
+  <script src="/js/page_statement.js"></script>
+  <script src="/js/page_conversion.js"></script>
+  <script src="/js/page_creator.js"></script>
+  <script src="/js/page_tools.js"></script>
+  <script src="/js/page_samples.js"></script>
+  <script src="/js/page_packer.js"></script>
+  <script src="/js/page_identities.js"></script>
+  <script src="/js/page_merge.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

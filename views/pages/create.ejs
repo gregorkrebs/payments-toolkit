@@ -1,0 +1,28 @@
+<section id="page-create" class="page">
+  <h1>Zahlungsdatei erstellen</h1>
+  <p>Auftragsart und Regelwerk auswaehlen, Felder ausfuellen, Datei generieren.</p>
+  <div id="creator-step1">
+    <label>Kategorie:
+      <select id="creator-category-select">
+        <option value="">-- bitte waehlen --</option>
+        <option value="SEPA">SEPA</option>
+        <option value="DTAZV">DTAZV</option>
+      </select>
+    </label>
+    <label id="creator-ordertype-label" style="display:none">Auftragsart:
+      <select id="creator-ordertype-select"></select>
+    </label>
+    <label id="creator-ruleset-label" style="display:none">Regelwerk / Version:
+      <select id="creator-ruleset-select"></select>
+    </label>
+    <button id="creator-start-btn" disabled>Formular oeffnen</button>
+  </div>
+  <div id="creator-form-area"></div>
+  <div id="creator-preview" style="display:none">
+    <h2>XML-Vorschau</h2>
+    <pre id="creator-xml-preview"></pre>
+    <button id="creator-download-btn">XML herunterladen</button>
+    <button id="creator-validate-btn">Direkt validieren</button>
+  </div>
+  <div id="creator-validate-result"></div>
+</section>

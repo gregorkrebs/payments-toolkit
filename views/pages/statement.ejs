@@ -1,0 +1,22 @@
+<section id="page-statement" class="page">
+  <h1>Kontoauszuege</h1>
+  <p>STA (MT940), C53 (CAMT.053) oder C53-Archiv-XML einlesen, anzeigen und exportieren.</p>
+  <div id="statement-upload-area" class="upload-area">
+    <p>Datei hier ablegen oder klicken zum Auswaehlen</p>
+    <p class="upload-hint">Akzeptiert: .sta, .mt940, .xml, .c53, .zip</p>
+    <input type="file" id="statement-file-input" accept=".sta,.mt940,.xml,.c53,.zip,.txt">
+  </div>
+  <div id="statement-controls" style="display:none;justify-content: space-around;padding: 12px 0px;align-items: center;">
+    <button id="stmt-export-csv-btn">CSV exportieren</button>
+    <button id="stmt-export-pdf-btn">PDF exportieren</button>
+    <select id="stmt-select"></select>
+  </div>
+  <div id="statement-result"></div>
+  <div id="statement-charts" style="display:none">
+    <h2>Grafische Auswertung</h2>
+    <div class="chart-row">
+      <div class="chart-box"><canvas id="chart-debitcredit"></canvas></div>
+      <div class="chart-box"><canvas id="chart-balance"></canvas></div>
+    </div>
+  </div>
+</section>
