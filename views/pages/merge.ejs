@@ -1,0 +1,28 @@
+<section id="page-merge" class="page">
+  <h1>Zahlungen zusammenfassen</h1>
+  <p>Mehrere Zahlungsdateien (CCT/CCU) zusammenfassen und als einheitliche pain.001.003.03 exportieren.</p>
+  
+  <div id="merge-upload-area" class="upload-area">
+    <p>Zahlungsdateien hier ablegen oder klicken zum Auswaehlen</p>
+    <p class="upload-hint">Akzeptiert: .xml (pain.001 CCT/CCU)</p>
+    <input type="file" id="merge-file-input" accept=".xml" multiple>
+  </div>
+  
+  <div id="merge-file-list" style="margin-top:1rem"></div>
+  
+  <div id="merge-controls" style="display:none; margin-top:1rem;">
+    <details style="margin-bottom:1rem">
+      <summary style="cursor:pointer;font-size:0.875rem;font-weight:500;margin-bottom:0.5rem">Globale Parameter ueberschreiben</summary>
+      <div style="padding:1rem; background:var(--muted); border-radius:var(--r); margin-top:0.5rem">
+        <label>Name: <input type="text" id="merge-name" placeholder="Max Mustermann"></label>
+        <label>IBAN: <input type="text" id="merge-iban" placeholder="DE89370400440532013000" maxlength="34"></label>
+        <label>BIC: <input type="text" id="merge-bic" placeholder="COBADEFFXXX" maxlength="11"></label>
+        <label>Valuta: <input type="date" id="merge-valuta"></label>
+      </div>
+    </details>
+    
+    <button id="merge-export-btn" class="btn-primary">&#8659; Zusammengefasste Datei exportieren</button>
+  </div>
+  
+  <div id="merge-result" style="margin-top:1rem"></div>
+</section>

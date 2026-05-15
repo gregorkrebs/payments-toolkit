@@ -1,0 +1,57 @@
+<section id="page-tools" class="page">
+  <h1>Hilfstools</h1>
+  <div class="tabs-secondary" id="tools-tabs">
+    <button class="tab-btn active" data-tool="iban-validate">IBAN pruefen</button>
+    <button class="tab-btn" data-tool="iban-calculate">IBAN berechnen</button>
+    <button class="tab-btn" data-tool="iban-de">DE: BLZ + Konto</button>
+    <button class="tab-btn" data-tool="iban-breakdown">IBAN zerlegen</button>
+    <button class="tab-btn" data-tool="iban-batch">Batch-Pruefung</button>
+  </div>
+
+  <div id="tool-iban-validate" class="tool-panel active">
+    <h2>IBAN pruefen</h2>
+    <label>IBAN: <input type="text" id="iban-validate-input" placeholder="z.B. DE89370400440532013000" maxlength="34"></label>
+    <button id="iban-validate-btn">Pruefen</button>
+    <div id="iban-validate-result"></div>
+
+    <h3 style="margin-top: 2rem;">BLZ / BIC / Banksuche</h3>
+    <p style="font-size: 0.9em; color: var(--text-muted); margin-bottom: 0.5rem;">Finde deutsche Banken schnell per Kurzbezeichnung, Bankleitzahl oder BIC (ab 3 Zeichen).</p>
+    <div style="position: relative;">
+      <input type="text" id="bank-search-input" placeholder="Suchbegriff eingeben..." autocomplete="off">
+      <div id="bank-search-results" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:100; background:var(--bg); border:1px solid var(--border); box-shadow:0 4px 6px rgba(0,0,0,0.1); max-height:250px; overflow-y:auto; border-radius:4px; margin-top:4px;"></div>
+    </div>
+    <div id="bank-search-result" style="margin-top:1rem;"></div>
+  </div>
+
+  <div id="tool-iban-calculate" class="tool-panel">
+    <h2>IBAN berechnen (Land + BBAN)</h2>
+    <label>Land (2 Buchstaben): <input type="text" id="iban-calc-country" placeholder="DE" maxlength="2"></label>
+    <label>BBAN: <input type="text" id="iban-calc-bban" placeholder="370400440532013000" maxlength="32"></label>
+    <button id="iban-calc-btn">Berechnen</button>
+    <div id="iban-calc-result"></div>
+  </div>
+
+  <div id="tool-iban-de" class="tool-panel">
+    <h2>Deutsche IBAN berechnen (BLZ + Kontonummer)</h2>
+    <label>BLZ (8 Ziffern): <input type="text" id="iban-de-blz" placeholder="37040044" maxlength="8"></label>
+    <label>Kontonummer (bis 10 Ziffern): <input type="text" id="iban-de-konto" placeholder="532013000" maxlength="10"></label>
+    <button id="iban-de-btn">IBAN berechnen</button>
+    <div id="iban-de-result"></div>
+  </div>
+
+  <div id="tool-iban-breakdown" class="tool-panel">
+    <h2>IBAN zerlegen</h2>
+    <label>IBAN: <input type="text" id="iban-breakdown-input" placeholder="DE89370400440532013000" maxlength="34"></label>
+    <button id="iban-breakdown-btn">Zerlegen</button>
+    <div id="iban-breakdown-result"></div>
+  </div>
+
+  <div id="tool-iban-batch" class="tool-panel">
+    <h2>Batch IBAN-Pruefung</h2>
+    <label>IBANs (eine pro Zeile, max 500):
+      <textarea id="iban-batch-input" rows="10" placeholder="DE89370400440532013000&#10;AT611904300234573201&#10;CH5604835012345678009"></textarea>
+    </label>
+    <button id="iban-batch-btn">Alle pruefen</button>
+    <div id="iban-batch-result"></div>
+  </div>
+</section>

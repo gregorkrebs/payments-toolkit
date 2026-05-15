@@ -1,0 +1,65 @@
+<section id="page-identities" class="page">
+  <h1>Identitäten generieren</h1>
+  <p>Realistische Testidentitäten mit Bankdaten, Adresse und Kontaktdaten generieren.</p>
+
+  <div class="identities-controls">
+    <div class="identities-controls-row">
+      <label>Anzahl (1–200):
+        <div class="field-with-btn" style="margin-top:0.3rem">
+          <input type="range" id="identities-slider" min="1" max="200" value="3" style="flex:1;max-width:none;padding:0;border:none;box-shadow:none;background:transparent">
+          <input type="number" id="identities-count" min="1" max="200" value="3" style="width:70px;max-width:70px;flex:none">
+        </div>
+      </label>
+      <div class="identities-view-toggle">
+        <button id="identities-view-card" class="view-btn active" title="Karten-Ansicht">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline-block;vertical-align:middle;margin-right:0.25rem">
+            <rect x="3" y="3" width="7" height="7"/>
+            <rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          Karten
+        </button>
+        <button id="identities-view-table" class="view-btn" title="Tabellen-Ansicht">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline-block;vertical-align:middle;margin-right:0.25rem">
+            <line x1="8" y1="6" x2="21" y2="6"/>
+            <line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+          Tabelle
+        </button>
+      </div>
+    </div>
+    <div class="identities-controls-row" style="gap:0.5rem;flex-wrap:wrap">
+      <button id="identities-gen-btn" class="btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline-block;vertical-align:middle;margin-right:0.25rem">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7,10 12,15 17,10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Generieren
+      </button>
+      <button id="identities-copy-json-btn" class="btn-secondary" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline-block;vertical-align:middle;margin-right:0.25rem">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        Alle als JSON kopieren
+      </button>
+      <button id="identities-download-btn" class="btn-secondary" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline-block;vertical-align:middle;margin-right:0.25rem">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7,10 12,15 17,10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        JSON herunterladen
+      </button>
+    </div>
+  </div>
+
+  <div id="identities-meta" style="display:none" class="identities-meta"></div>
+  <div id="identities-result"></div>
+</section>
