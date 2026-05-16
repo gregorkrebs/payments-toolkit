@@ -74,54 +74,127 @@ function formatC53Filename(date, iban, ccy) {
 }
 
 /* ── STA (MT940) generator ────────────────────────────────────────────── */
+
+/** Prüft, ob String eine valide deutsche IBAN ist (DE + 20 Ziffern). */
+function isGermanIban(iban) {
+  return /^DE\d{20}$/.test((iban || '').replace(/\s/g, '').toUpperCase());
+}
+
+/** Extract BLZ (pos 4-11) and Kontonummer (pos 12-21, trimmed leading zeros) from a German IBAN. */
+function ibanToBlzKonto(iban) {
+  const clean = (iban || '').replace(/\s/g, '');
+  if (/^DE\d{20}$/.test(clean)) {
+    const blz   = clean.slice(4, 12);
+    const konto = clean.slice(12, 22).replace(/^0+/, '') || '0';
+    return { blz, konto };
+  }
+  return { blz: '', konto: '' };
+}
+
+/** Split string into chunks of 27 chars, up to max chunks (for ?20..?29 etc.) */
+function splitInto27(str, max) {
+  const chunks = [];
+  for (let i = 0; i < str.length && chunks.length < max; i += 27) {
+    chunks.push(str.slice(i, i + 27));
+  }
+  return chunks;
+}
+
+/** Wrap :86: line at 65 chars with CRLF continuation (SWIFT MT940 line length limit) */
+function wrap65(str) {
+  const out = [];
+  for (let i = 0; i < str.length; i += 65) out.push(str.slice(i, i + 65));
+  return out.join('\r\n');
+}
+
 function generateSTA(txList, opts) {
-  const iban     = opts.iban        || 'DE89370400440532013000';
+  const iban     = (opts.iban || 'DE89370400440532013000').replace(/\s/g, '');
   const bic      = opts.bic         || 'COBADEFFXXX';
   const name     = opts.accountName || 'Max Mustermann';
   const ccy      = opts.currency    || 'EUR';
   const startBal = parseFloat(opts.openingBalance) || 10000.00;
 
-  // Sort by dayOfYear
-  const sorted = txList.slice().sort((a, b) => a.dayOfYear - b.dayOfYear);
-  const year   = opts.year || new Date().getFullYear();
-
-  function dayToDate(doy) {
-    const d = new Date(year, 0, 1); d.setDate(d.getDate() + doy - 1); return d;
+  // STA/MT940 nur für deutsche Umsätze — eigene IBAN MUSS DE sein
+  if (!isGermanIban(iban)) {
+    throw new Error('STA-Format unterstützt nur deutsche Konto-IBANs (DE...). Bitte CAMT.053 für internationale Konten verwenden.');
   }
 
-  const firstDay = sorted[0].dayOfYear;
-  const lastDay  = sorted[sorted.length - 1].dayOfYear;
-  const fromDate = fmtYYMMDD(dayToDate(firstDay));
-  const toDate   = fmtYYMMDD(dayToDate(lastDay));
+  // Gegenseiten-IBAN muss ebenfalls DE sein — alle anderen herausfiltern
+  const txListDE = txList.filter(tx => isGermanIban(tx.counterIban));
+
+  if (txListDE.length === 0) {
+    throw new Error('Keine deutschen Umsätze in der Auswahl. STA kann nicht generiert werden.');
+  }
+
+  const { blz, konto } = ibanToBlzKonto(iban);
+  // :25: uses BLZ/KONTONR format as required by German MT940 / Multicash
+  const acctId = blz && konto ? `${blz}/${konto}` : iban;
+
+  const sorted = txListDE.slice().sort((a, b) => a.dayOfYear - b.dayOfYear);
+
+  // Determine statement date: explicit staDate, or last weekday before today
+  let stmtDate;
+  if (opts.staDate && /^\d{4}-\d{2}-\d{2}$/.test(opts.staDate)) {
+    stmtDate = new Date(opts.staDate + 'T00:00:00');
+  } else {
+    stmtDate = new Date(); stmtDate.setDate(stmtDate.getDate() - 1);
+    while (stmtDate.getDay() === 0 || stmtDate.getDay() === 6) stmtDate.setDate(stmtDate.getDate() - 1);
+  }
+
+  const fromDate = fmtYYMMDD(stmtDate);
+  const toDate   = fmtYYMMDD(stmtDate);
 
   let balance = startBal;
   const lines = [];
   lines.push(`:20:STMT${fromDate}001`);
   lines.push(`:21:NONREF`);
-  lines.push(`:25:${iban}/${ccy}`);
+  lines.push(`:25:${acctId}`);
   lines.push(`:28C:00001/001`);
   const openInd = balance >= 0 ? 'C' : 'D';
   lines.push(`:60F:${openInd}${fromDate}${ccy}${fmtAmt(Math.abs(balance))}`);
 
   sorted.forEach((tx, idx) => {
-    const d    = dayToDate(tx.dayOfYear);
-    const dStr = fmtYYMMDD(d);
+    const dStr = fmtYYMMDD(stmtDate);
     const amt  = tx.amount;
     const dcSta = tx.dc === 'C' ? 'C' : 'D';
     const gvc   = tx.gvc || '051';
     const ref   = `REF${String(idx + 1).padStart(5, '0')}`;
     const bankRef = `BNK${dStr}${String(idx + 1).padStart(3, '0')}`;
-    lines.push(`:61:${dStr}${dStr}${dcSta}${fmtAmt(amt)}N${gvc}${ref}//${bankRef}`);
-    const bic30  = (tx.counterBic  || '').slice(0, 11);
-    const iban31 = (tx.counterIban || '').slice(0, 34);
-    const name32 = (tx.counterName || '').slice(0, 35);
-    const purp   = (tx.purpose     || '').slice(0, 27);
-    const bucht  = (tx.buchungstext|| '').slice(0, 27);
-    let tag86 = `${gvc}?00${bucht}?10${String(idx + 1).padStart(6, '0')}?20${purp}`;
-    if (bic30)  tag86 += `?30${bic30}`;
-    if (iban31) tag86 += `?31${iban31}`;
-    if (name32) tag86 += `?32${name32}`;
-    lines.push(`:86:${tag86}`);
+    const bookDateMMDD = dStr.slice(2);
+    // :61: uses SWIFT transaction code (TRF), not the German GVC
+    lines.push(`:61:${dStr}${bookDateMMDD}${dcSta}${fmtAmt(amt)}NTRF${ref}//${bankRef}`);
+
+    const cName   = (tx.counterName || '');
+    const purp    = (tx.purpose     || '');
+    const bucht   = (tx.buchungstext|| '').slice(0, 27);
+
+    // DK-Belegungsrichtlinien MT940: ?00 Buchungstext, ?10 Primanota,
+    // ?20-?29 Verwendungszweck, ?30 BLZ (8-stellig), ?31 Kontonummer,
+    // ?32/?33 Name (27 Zeichen je)
+    let tag86 = `${gvc}?00${bucht}?10${String(idx + 1).padStart(6, '0')}`;
+
+    // Strukturierter Verwendungszweck nach DFÜ-Abkommen Anlage 3
+    const svwzParts = [];
+    const eref = tx.endToEndId || `EREF${String(idx + 1).padStart(6, '0')}`;
+    svwzParts.push(`EREF+${eref}`);
+    if (tx.mandateId)  svwzParts.push(`MREF+${tx.mandateId}`);
+    if (tx.creditorId) svwzParts.push(`CRED+${tx.creditorId}`);
+    if (purp)          svwzParts.push(`SVWZ+${purp}`);
+    const fullPurp = svwzParts.join(' ');
+    splitInto27(fullPurp, 10).forEach((chunk, i) => { tag86 += `?${20 + i}${chunk}`; });
+
+    const ctrIbanR = (tx.counterIban || '').replace(/\s/g, '').toUpperCase();
+    const { blz: ctrBlz, konto: ctrKto } = ibanToBlzKonto(ctrIbanR);
+
+    // Garantiert DE-IBAN durch Filter oben → BLZ und Konto immer vorhanden
+    tag86 += `?30${ctrBlz}`;
+    tag86 += `?31${ctrKto}`;
+
+    // ?32 immer setzen (Multicash erkennt SEPA-Umsatz sonst nicht), max 27 Zeichen
+    tag86 += `?32${cName.slice(0, 27)}`;
+    if (cName.length > 27) tag86 += `?33${cName.slice(27, 54)}`;
+
+    lines.push(wrap65(`:86:${tag86}`));
     balance += dcSta === 'C' ? amt : -amt;
   });
 
@@ -243,7 +316,7 @@ ${entries}
 /* ── Route ─────────────────────────────────────────────────────────── */
 router.post('/generate', (req, res) => {
   try {
-    const { format, count, iban, bic, accountName, currency, openingBalance, year, dateFrom, dateTo } = req.body;
+    const { format, count, iban, bic, accountName, currency, openingBalance, year, staDate, dateFrom, dateTo } = req.body;
     const n   = Math.min(Math.max(parseInt(count) || 10, 1), 250);
     const fmt = String(format || 'sta').toLowerCase();
     if (fmt !== 'sta' && fmt !== 'c53') {
@@ -254,7 +327,12 @@ router.post('/generate', (req, res) => {
     const opts    = { iban, bic, accountName, currency, openingBalance, year: parseInt(year) || new Date().getFullYear() };
 
     if (fmt === 'sta') {
-      const content  = generateSTA(picked, opts);
+      let content;
+      try {
+        content = generateSTA(picked, { ...opts, staDate });
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
       const filename = `example_${n}tx_${opts.year}.sta`;
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

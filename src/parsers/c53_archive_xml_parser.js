@@ -31,6 +31,8 @@ async function parseC53ArchiveXml(buffer) {
       const xmlStr = entry.getData().toString('utf8');
       const result = await parseCamt053(xmlStr);
       result.sourceFile = entry.entryName;
+      // Tag each statement with its source filename for the dropdown
+      (result.statements || []).forEach(s => { s.sourceFile = entry.entryName; });
       results.push(result);
     }
     // Merge all statements from all XML files into one response

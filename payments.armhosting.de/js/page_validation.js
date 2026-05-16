@@ -234,7 +234,7 @@
     const errMap = {};
     issues.forEach(i => { errMap[i.fieldPath || i.field] = i; });
 
-    let html = '<h2>Inhalt (aufgedrüsel)</h2>';
+    let html = '<h2>Inhalt</h2>';
     const raw = r.fieldTree?.raw || r.parsed?.raw;
     if (!raw) return html + '<p>Kein Inhalt zum Anzeigen.</p>';
 

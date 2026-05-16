@@ -5,7 +5,8 @@
   // ── State ──
   const state = {
     files: [],       // { file, name, type, txCount, total }
-    transactions: [] // { id, fileIdx, fileName, fileType, e2e, valuta, amt, ccy, cdtrNm, cdtrIban, cdtrBic, rmtInf, checked, modified }
+    transactions: [], // { id, fileIdx, fileName, fileType, e2e, valuta, amt, ccy, cdtrNm, cdtrIban, cdtrBic, rmtInf, checked, modified }
+    debtor: { nm: '', iban: '', bic: '' }
   };
   let editingIdx = null;
 
@@ -14,7 +15,8 @@
       txSection, txTbody, checkAll, txCountLabel, selectionInfo,
       exportBtn, selectAllBtn, selectNoneBtn, clearBtn,
       modal, mfE2e, mfValuta, mfAmt, mfCcy, mfCdtrNm, mfCdtrIban, mfCdtrBic, mfRmtinf,
-      ibanErr, modalSave, modalCancel, modalClose, resultEl;
+      ibanErr, modalSave, modalCancel, modalClose, resultEl,
+      debtorSection, dbtrNmEl, dbtrIbanEl, dbtrBicEl, dbtrIbanErr;
 
   // ── Toast ──
   function toast(msg, type) {
@@ -59,22 +61,24 @@
   // ── Parse pain.001 XML ──
   function parsePain001(xmlStr, fileIdx, fileName, fileType) {
     const doc = new DOMParser().parseFromString(xmlStr, 'text/xml');
-    if (doc.querySelector('parsererror')) return [];
-    const ns = 'urn:iso:std:iso:20022:tech:xsd:pain.001.003.03';
+    if (doc.querySelector('parsererror')) return { txs: [], debtor: { nm: '', iban: '', bic: '' } };
 
     function q(el, tag) {
-      let found = el.getElementsByTagNameNS(ns, tag)[0];
-      if (!found) found = el.getElementsByTagName(tag)[0];
+      const found = el.getElementsByTagName(tag)[0];
       return found ? found.textContent.trim() : '';
     }
 
     // Gather ReqdExctnDt from PmtInf level (used as valuta fallback)
-    const pmtInfs = doc.getElementsByTagName('PmtInf');
+    const pmtInfs = Array.from(doc.getElementsByTagName('PmtInf'));
     const txs = [];
     let txIndex = 0;
 
-    Array.from(pmtInfs).forEach(pmtInf => {
-      const valutaFallback = q(pmtInf, 'ReqdExctnDt');
+    pmtInfs.forEach(pmtInf => {
+      // ReqdExctnDt kann in v09 als <Dt> Kind vorliegen
+      const rdEl = pmtInf.getElementsByTagName('ReqdExctnDt')[0];
+      const valutaFallback = rdEl
+        ? (rdEl.getElementsByTagName('Dt')[0]?.textContent.trim() || rdEl.textContent.trim())
+        : '';
       const cdtTrfTxInfs = pmtInf.getElementsByTagName('CdtTrfTxInf');
       Array.from(cdtTrfTxInfs).forEach(tx => {
         const amt = parseFloat(q(tx, 'InstdAmt') || q(tx, 'Amt') || '0');
@@ -93,14 +97,25 @@
           ccy,
           cdtrNm: q(tx, 'Nm'),
           cdtrIban: q(tx, 'IBAN'),
-          cdtrBic: q(tx, 'BIC'),
+          cdtrBic: q(tx, 'BIC') || q(tx, 'BICFI'),
           rmtInf: q(tx, 'Ustrd'),
           checked: true,
           modified: false,
         });
       });
     });
-    return txs;
+
+    // Debtor-Infos aus erstem PmtInf extrahieren
+    let debtor = { nm: '', iban: '', bic: '' };
+    if (pmtInfs.length > 0) {
+      const pi = pmtInfs[0];
+      const dbtrEl = pi.getElementsByTagName('Dbtr')[0];
+      debtor.nm   = dbtrEl ? q(dbtrEl, 'Nm') : '';
+      debtor.iban = q(pi, 'IBAN');  // DbtrAcct/Id/IBAN
+      debtor.bic  = q(pi, 'BICFI') || q(pi, 'BIC');
+    }
+
+    return { txs, debtor };
   }
 
   // ── Load files ──
@@ -115,11 +130,20 @@
 
       const text = await file.text();
       const fileType = detectPainType(text);
-      const txs = parsePain001(text, state.files.length, file.name, fileType);
+      const parsed = parsePain001(text, state.files.length, file.name, fileType);
+      const { txs } = parsed;
       const total = txs.reduce((s, t) => s + t.amt, 0);
 
       state.files.push({ file, name: file.name, type: fileType, txCount: txs.length, total, size: file.size });
       state.transactions.push(...txs);
+
+      // Debtor vorausfüllen wenn noch leer (erste Datei gewinnt)
+      if (!state.debtor.iban && parsed.debtor.iban) {
+        state.debtor = { ...parsed.debtor };
+        dbtrNmEl.value   = parsed.debtor.nm;
+        dbtrIbanEl.value = parsed.debtor.iban;
+        dbtrBicEl.value  = parsed.debtor.bic;
+      }
       added++;
     }
 
@@ -133,8 +157,10 @@
 
   // ── Render file metadata table ──
   function renderFilesTable() {
-    filesSection.style.display = state.files.length ? '' : 'none';
-    txSection.style.display = state.files.length ? '' : 'none';
+    const show = state.files.length ? '' : 'none';
+    filesSection.style.display    = show;
+    debtorSection.style.display   = show;
+    txSection.style.display       = show;
 
     filesTbody.innerHTML = state.files.map((f, i) => `
       <tr>
@@ -160,9 +186,19 @@
     state.files.forEach((f, i) => {
       state.transactions.filter(t => t.fileIdx === i).forEach(t => { t.fileIdx = i; t.fileName = f.name; });
     });
+    if (state.files.length === 0) resetDebtor();
     renderFilesTable();
     renderTxTable();
     updateSelectionInfo();
+  }
+
+  function resetDebtor() {
+    state.debtor = { nm: '', iban: '', bic: '' };
+    if (dbtrNmEl)   dbtrNmEl.value   = '';
+    if (dbtrIbanEl) dbtrIbanEl.value = '';
+    if (dbtrBicEl)  dbtrBicEl.value  = '';
+    if (dbtrIbanErr) dbtrIbanErr.textContent = '';
+    if (dbtrIbanEl) dbtrIbanEl.classList.remove('invalid');
   }
 
   // ── Render transaction table ──
@@ -290,11 +326,25 @@
       return;
     }
 
+    // Debtor-Validierung
+    const dbtrNm   = dbtrNmEl.value.trim();
+    const dbtrIban = dbtrIbanEl.value.trim().replace(/\s/g, '');
+    const dbtrBic  = dbtrBicEl.value.trim();
+    if (!dbtrNm || !dbtrIban || !validateIban(dbtrIban)) {
+      toast('Auftraggeber: Name und gültige IBAN sind Pflichtfelder.', 'err');
+      dbtrIbanEl.classList.toggle('invalid', !validateIban(dbtrIban));
+      dbtrIbanErr.textContent = validateIban(dbtrIban) ? '' : 'Ungültige IBAN';
+      return;
+    }
+
     exportBtn.disabled = true;
     resultEl.innerHTML = '<span class="loader">Verarbeite Transaktionen...</span>';
 
     try {
       const payload = {
+        dbtrNm,
+        dbtrIban,
+        dbtrBic,
         transactions: active.map(t => ({
           e2e: t.e2e,
           valuta: t.valuta,
@@ -373,6 +423,11 @@
     modalCancel  = document.getElementById('merge-modal-cancel');
     modalClose   = document.getElementById('merge-modal-close');
     resultEl     = document.getElementById('merge-result');
+    debtorSection= document.getElementById('merge-debtor-section');
+    dbtrNmEl     = document.getElementById('merge-dbtr-nm');
+    dbtrIbanEl   = document.getElementById('merge-dbtr-iban');
+    dbtrBicEl    = document.getElementById('merge-dbtr-bic');
+    dbtrIbanErr  = document.getElementById('merge-dbtr-iban-err');
 
     if (!uploadArea) return;
 
@@ -390,6 +445,7 @@
     // Toolbar buttons
     clearBtn.addEventListener('click', () => {
       state.files = []; state.transactions = [];
+      resetDebtor();
       renderFilesTable(); renderTxTable(); updateSelectionInfo();
     });
 
@@ -416,7 +472,15 @@
     modalSave.addEventListener('click', saveModal);
     modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 
-    // IBAN real-time validation
+    // Debtor IBAN real-time validation
+    dbtrIbanEl.addEventListener('input', () => {
+      const v = dbtrIbanEl.value.trim();
+      const ok = !v || validateIban(v);
+      dbtrIbanEl.classList.toggle('invalid', !ok);
+      dbtrIbanErr.textContent = ok ? '' : 'Ungültige IBAN';
+    });
+
+    // Creditor IBAN real-time validation (modal)
     mfCdtrIban.addEventListener('input', () => {
       const v = mfCdtrIban.value.trim();
       if (v.length >= 15) {

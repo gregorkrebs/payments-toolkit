@@ -59,7 +59,21 @@ const FORBIDDEN_BLZS = new Set([
     ...require('./sonderbanken_warn.json').map(e => e.blz),
 ]);
 
-const bankEntries = Object.entries(banks).filter(([blz]) => !FORBIDDEN_BLZS.has(blz));
+// Harte Sperrliste: Diese BLZs duerfen niemals zur IBAN-Generierung verwendet werden.
+const HARD_BLOCKED_BLZS = new Set([
+    '25190088', '30150001', '38010053', '40150001', '40351220', '50030000',
+    '50040033', '50215500', '50230800', '50320191', '51430400', '52410300',
+    '52410310', '52411000', '52411010', '55150098', '70011900', '70012000',
+    '70013010', '70015000', '70015015', '70015025', '72030260', '79020076',
+    '70015035', '70021180'
+]);
+
+const EXCLUDED_BLZS = new Set([
+    ...FORBIDDEN_BLZS,
+    ...HARD_BLOCKED_BLZS
+]);
+
+const bankEntries = Object.entries(banks).filter(([blz]) => !EXCLUDED_BLZS.has(blz));
 
 // ---------------------------------------------------------------------------
 // IBAN helpers
@@ -436,7 +450,8 @@ function generateIdentity() {
             iban: account.iban,
             bic: account.bic,
             bankname: account.bankname,
-            blz: account.blz
+            blz: account.blz,
+            konto: account.konto
         }
     };
 }
@@ -471,43 +486,40 @@ function generateIbanIdForEveryBank() {
 
     return result;
 }
+generateIbanIdForEveryBank();
 
-function generatFunnyIbans() {
-    const BLZ_LIST = [25190088,30150001,38010053,40150001,40351220,50030000,50040033,50215500,50230800,50320191,51430400,52410300,52410310,52411000,52411010,55150098,70011900,70012000,70013010,70015000,70015015,70015025,72030260,79020076];
-    BLZ_LIST.push(25190088,30150001,38010053,40150001,40351220,50030000,50040033,50215500,50230800,50320191,51430400,52410300,52410310,52411000,52411010,55150098,70011900,70012000,70013010,70015000,70015015,70015025,72030260,79020076);
-    BLZ_LIST.push(25190088,30150001,38010053,40150001,40351220,50030000,50040033,50215500,50230800,50320191,51430400,52410300,52410310,52411000,52411010,55150098,70011900,70012000,70013010,70015000,70015015,70015025,72030260,79020076);
-    BLZ_LIST.push(25190088,30150001,38010053,40150001,40351220,50030000,50040033,50215500,50230800,50320191,51430400,52410300,52410310,52411000,52411010,55150098,70011900,70012000,70013010,70015000,70015015,70015025,72030260,79020076);
-    BLZ_LIST.push(25190088,30150001,38010053,40150001,40351220,50030000,50040033,50215500,50230800,50320191,51430400,52410300,52410310,52411000,52411010,55150098,70011900,70012000,70013010,70015000,70015015,70015025,72030260,79020076);
-    BLZ_LIST.sort(() => Math.random() - 0.5);
-    const result = {};
-    for (let i = 0; i < BLZ_LIST.length; i++) {
-        const blz = String(BLZ_LIST[i]);
-        const method = banks[blz][2] || '09';
-        let iban = null;
-        for (let attempt = 0; attempt < 200; attempt++) {
-            const konto = generateAccountDetails(method);
-            const candidate = buildIban(blz, konto);
-            if (isValidAccountNumberBLZ(konto, blz) && isValidIBAN(candidate)) {
-                iban = candidate;
-                break;
-            }
-        }
-        if (iban) {
-            result[String(i)] = iban;
-        }
-    }
 
-    fs.writeFileSync(
-        path.join(__dirname, 'funny_ibans.json'),
-        JSON.stringify(result, null, 0)
-            .replace(/^\{/, '{\n')
-            .replace(/\}$/, '\n}')
-            .replace(/,"/g, ',\n"'),
-        'utf8'
-    );
-}
+// function generatFunnyIbans() {
+//     const BLZ_LIST = [25190088,30150001,38010053,40150001,40351220,50030000,50040033,50215500,50230800,50320191,51430400,52410300,52410310,52411000,52411010,55150098,70011900,70012000,70013010,70015000,70015015,70015025,72030260,79020076];    BLZ_LIST.sort(() => Math.random() - 0.5);
+//     const result = {};
+//     for (let i = 0; i < BLZ_LIST.length; i++) {
+//         const blz = String(BLZ_LIST[i]);
+//         const method = banks[blz][2] || '09';
+//         let iban = null;
+//         for (let attempt = 0; attempt < 200; attempt++) {
+//             const konto = generateAccountDetails(method);
+//             const candidate = buildIban(blz, konto);
+//             if (isValidAccountNumberBLZ(konto, blz) && isValidIBAN(candidate)) {
+//                 iban = candidate;
+//                 break;
+//             }
+//         }
+//         if (iban) {
+//             result[String(i)] = iban;
+//         }
+//     }
 
-generatFunnyIbans()
+//     fs.writeFileSync(
+//         path.join(__dirname, 'funny_ibans.json'),
+//         JSON.stringify(result, null, 0)
+//             .replace(/^\{/, '{\n')
+//             .replace(/\}$/, '\n}')
+//             .replace(/,"/g, ',\n"'),
+//         'utf8'
+//     );
+// }
+
+// generatFunnyIbans()
 
 // ---------------------------------------------------------------------------
 // Exports
@@ -518,7 +530,6 @@ module.exports = {
     generateIdentity,
     getRandomBankAccount,
     generateGermanIbans,
-    generateIbanIdForEveryBank,
     getRandomCompanyName,
     getRandomName,
     getRandomAddress,
@@ -529,51 +540,51 @@ module.exports = {
 // Demo output – only when run directly
 // ---------------------------------------------------------------------------
 
-if (require.main === module) {
-    console.log('=== 3 komplette Identitäten ===\n');
-    for (let i = 0; i < 3; i++) {
-        const id = generateIdentity();
-        console.log(JSON.stringify({
-            firstname: id.firstName,
-            lastname: id.lastName,
-            fullname: id.fullName,
-            birthday: id.birthday,
-            age: id.age,
-            address: {
-                street: id.address.street,
-                plz: id.address.plz,
-                city: id.address.city,
-                full: id.address.full
-            },
-            account: {
-                iban: id.account.iban,
-                bic: id.account.bic,
-                bankname: id.account.bankname
-            }
-        }, null, 4));
-        console.log();
-    }
-}
+// if (require.main === module) {
+//     console.log('=== 3 komplette Identitäten ===\n');
+//     for (let i = 0; i < 3; i++) {
+//         const id = generateIdentity();
+//         console.log(JSON.stringify({
+//             firstname: id.firstName,
+//             lastname: id.lastName,
+//             fullname: id.fullName,
+//             birthday: id.birthday,
+//             age: id.age,
+//             address: {
+//                 street: id.address.street,
+//                 plz: id.address.plz,
+//                 city: id.address.city,
+//                 full: id.address.full
+//             },
+//             account: {
+//                 iban: id.account.iban,
+//                 bic: id.account.bic,
+//                 bankname: id.account.bankname
+//             }
+//         }, null, 4));
+//         console.log();
+//     }
+// }
 
-let finalstmt = [];
+// let finalstmt = [];
 
-if (require.main === module) {
-    console.log('=== Identitäten ===\n');
+// if (require.main === module) {
+//     console.log('=== Identitäten ===\n');
 
 
-    for (let i = 0; i < 20000; i++) {
-        const id = generateIdentity();
-        finalstmt.push(`"${i}": "${id.account.iban}"`);
-    }
+//     for (let i = 0; i < 20000; i++) {
+//         const id = generateIdentity();
+//         finalstmt.push(`"${i}": "${id.account.iban}"`);
+//     }
 
-    const content = '{\n' + finalstmt.join(',\n') + '\n}';
-    console.log(content);
-    fs.writeFileSync(
-        path.join(__dirname, 'generated_ibans.json'),
-        content,
-        'utf8'
-    );
-}
+//     const content = '{\n' + finalstmt.join(',\n') + '\n}';
+//     console.log(content);
+//     fs.writeFileSync(
+//         path.join(__dirname, 'generated_ibans.json'),
+//         content,
+//         'utf8'
+//     );
+// }
 // console.log('=== IBAN-Verifikation (50 Stück) ===');
 // generateGermanIbans(50).forEach(a => {
 //     const kontoOk = verifyKonto(a.konto, a.method);

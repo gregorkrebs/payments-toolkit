@@ -372,6 +372,24 @@ async function validatePainXml(xmlStr) {
   else if (meta.version.startsWith('pain.008')) validatePain008(doc, meta.version, issues);
   else if (meta.version.startsWith('pain.002')) validatePain002(doc, meta.version, issues);
 
+  // XSD-Sequenz PostalAddress6 (pain.001.001.03): <Ctry> muss innerhalb jedes <PstlAdr>-Blocks
+  // vor <AdrLine> stehen. xml2js verliert die Elementreihenfolge beim Parsen — daher Regex auf Raw-XML.
+  if (meta.version === 'pain.001.001.03') {
+    const pstlAdrBlocks = xmlStr.match(/<PstlAdr[\s\S]*?<\/PstlAdr>/g) || [];
+    pstlAdrBlocks.forEach((block, i) => {
+      const ctryPos   = block.indexOf('<Ctry>');
+      const adrLinePos = block.indexOf('<AdrLine>');
+      if (ctryPos !== -1 && adrLinePos !== -1 && ctryPos > adrLinePos) {
+        issues.push(err(
+          `PstlAdr[${i}]`,
+          '',
+          '<AdrLine> steht vor <Ctry> in PstlAdr — XSD-Sequenz verletzt: <Ctry> muss vor <AdrLine> stehen',
+          '<Ctry>XX</Ctry> vor <AdrLine>...</AdrLine>'
+        ));
+      }
+    });
+  }
+
   const errors   = issues.filter(i => i.severity === 'error');
   const warnings = issues.filter(i => i.severity === 'warn');
   return { ok: errors.length === 0, meta, issues, errors, warnings };
