@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\repos\\\\pmttools\" -Recurse -Filter \"*.js\")",
+      "Read(//c/repos/pmttools/routes/**)",
+      "PowerShell(head -100)",
+      "PowerShell($file = Get-Item \"c:\\\\repos\\\\pmttools\\\\routes\\\\api_c53_archiv.js\"; \"$\\($file.FullName\\): $\\($file.Length\\) bytes\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(node -e \"const SEPA = require\\('./sepa.js/dist/sepa.es5.cjs'\\).default; console.log\\('validateIBAN:', typeof SEPA.validateIBAN\\); console.log\\('keys:', Object.keys\\(SEPA\\)\\); const r = SEPA.validateIBAN\\('DE89370400440532013000'\\); console.log\\('IBAN test:', r\\);\")",
+      "Bash(node -e \"const SEPA = require\\('c:/repos/pmttools/sepa.js/dist/sepa.es5.cjs'\\).default; console.log\\('validateIBAN:', typeof SEPA.validateIBAN\\); console.log\\('keys:', Object.keys\\(SEPA\\)\\); console.log\\('IBAN valid:', SEPA.validateIBAN\\('DE89370400440532013000'\\)\\); console.log\\('IBAN invalid:', SEPA.validateIBAN\\('DE89370400440532013001'\\)\\);\")",
+      "Bash(node -e \"const m = require\\('c:/repos/pmttools/sepa.js/dist/sepa.es5.cjs'\\); console.log\\('type:', typeof m\\); console.log\\('keys:', Object.keys\\(m\\)\\); console.log\\('IBAN:', m.validateIBAN ? m.validateIBAN\\('DE89370400440532013000'\\) : 'n/a'\\);\")",
+      "Bash(node -e ' *)",
+      "PowerShell(cd c:\\\\repos\\\\pmttools; $proc = Start-Process node -ArgumentList \"server.js\" -PassThru -RedirectStandardOutput \"server_out.txt\" -RedirectStandardError \"server_err.txt\"; Start-Sleep -Seconds 3; $out = if \\(Test-Path server_out.txt\\) { Get-Content server_out.txt } else { \"\\(leer\\)\" }; $err = if \\(Test-Path server_err.txt\\) { Get-Content server_err.txt } else { \"\\(leer\\)\" }; $proc.Kill\\(\\); Write-Host \"STDOUT: $out\"; Write-Host \"STDERR: $err\"; Remove-Item server_out.txt, server_err.txt -ErrorAction SilentlyContinue 2>&1)",
+      "Bash(node -e \"const fs = require\\('fs'\\); const s = fs.readFileSync\\('server.js','utf8'\\); const idx = s.indexOf\\('express.json'\\); console.log\\(s.slice\\(Math.max\\(0,idx-100\\), idx+200\\)\\);\")",
+      "Bash(node -e \"require\\('./src/generators/identity_generator'\\); console.log\\('identity_generator OK'\\);\")",
+      "Bash(node -e \"require\\('./routes/api_validate'\\); console.log\\('api_validate routes OK'\\);\")",
+      "Bash(node qa_test.js)",
+      "Bash(curl -L -o eu_sepa_participants.xml \"https://www.europeanpaymentscouncil.eu/sites/default/files/participants_export/sct_inst/sct_inst.xml?v=1778238695\")",
+      "Bash(dir eu_sepa_participants.xml)",
+      "Bash(curl -L -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/124.0.0.0 Safari/537.36\" -H \"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\" -H \"Accept-Language: de-DE,de;q=0.9,en;q=0.8\" -o eu_sepa_participants.xml \"https://www.europeanpaymentscouncil.eu/sites/default/files/participants_export/sct_inst/sct_inst.xml?v=1778238695\")",
+      "Bash(node -e \"require\\('./routes/api_tools'\\); console.log\\('api_tools OK'\\);\")",
+      "Bash(node -e \"require\\('./routes/api_packer.js'\\); console.log\\('api_packer OK'\\);\")",
+      "Bash(php --syntax-check C:\\\\tmp\\\\check_ibans.php)"
+    ]
+  }
+}

@@ -36,22 +36,27 @@
     packBtn.addEventListener('click', () => packFiles(resultEl, packBtn));
 
     function addFiles(files) {
-      const xmlFiles = files.filter(f => f.name.toLowerCase().endsWith('.xml'));
-      const rejected = files.length - xmlFiles.length;
+      const nonXml   = files.filter(f => !f.name.toLowerCase().endsWith('.xml'));
+      const xmlFiles = files.filter(f =>  f.name.toLowerCase().endsWith('.xml'));
+
+      if (nonXml.length > 0) {
+        const names = nonXml.map(f => `<strong>${esc(f.name)}</strong>`).join(', ');
+        resultEl.innerHTML = statusBox(false,
+          'Nur .xml-Dateien erlaubt',
+          `Folgende Datei(en) wurden abgelehnt: ${names}`);
+      }
+
       xmlFiles.forEach(f => {
         if (!selectedFiles.find(x => x.name === f.name && x.size === f.size)) {
           selectedFiles.push(f);
         }
       });
       renderFileList();
-      if (rejected > 0) {
-        resultEl.innerHTML = statusBox(false, 'Hinweis', `${rejected} Datei(en) uebersprungen (nur .xml erlaubt).`);
-      }
     }
 
     function renderFileList() {
       if (selectedFiles.length === 0) {
-        fileList.innerHTML = '<p class="packer-empty">Noch keine Dateien ausgewaehlt.</p>';
+        fileList.innerHTML = '<p class="packer-empty">Noch keine Dateien ausgewählt.</p>';
         packBtn.disabled  = true;
         clearBtn.disabled = true;
         return;
@@ -84,10 +89,27 @@
       const fd = new FormData();
       selectedFiles.forEach(f => fd.append('files', f, f.name));
       const resp = await fetch('/api/packer/create', { method: 'POST', body: fd });
+
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: resp.statusText }));
-        throw new Error(err.error || resp.statusText);
+        // Detaillierte Fehlerliste aus rejected / nonXmlFiles zusammenbauen
+        const allRejected = [
+          ...(err.rejected     || []),
+          ...(err.nonXmlFiles  || []),
+        ];
+        let html = statusBox(false, 'Archiv nicht erstellt', esc(err.error || resp.statusText));
+        if (allRejected.length > 0) {
+          html += `<ul class="packer-reject-list">` +
+            allRejected.map(r =>
+              `<li><span class="packer-reject-file">${esc(r.file)}</span>` +
+              `<span class="packer-reject-reason">${esc(r.reason)}</span></li>`
+            ).join('') +
+          `</ul>`;
+        }
+        resultEl.innerHTML = html;
+        return;
       }
+
       const blob     = await resp.blob();
       const filename = resp.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] || 'archive.C53';
       const url = URL.createObjectURL(blob);

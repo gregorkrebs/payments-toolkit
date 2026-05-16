@@ -2,6 +2,19 @@
 
 const { isValidIBAN: isValidGermanIBAN } = require('ibantools-germany');
 
+// Clearing-Filter – lazy geladen damit kein Startup-Fehler wenn JSON fehlt
+let _clearingLoaded = false;
+let _checkIBANStatus = null;
+let _getIBANMessage  = null;
+function _loadClearing() {
+  if (_clearingLoaded) return;
+  _clearingLoaded = true;
+  try {
+    _checkIBANStatus = require('../generators/clearing_filter').checkIBANStatus;
+    _getIBANMessage  = require('../generators/clearing_messages').getIBANMessage;
+  } catch(_) { /* Clearing-Filter nicht verfügbar */ }
+}
+
 // IBAN country format: [total_length, bban_structure_description] 
 // 
 const IBAN_FORMATS = {
@@ -117,6 +130,22 @@ function validateIban(raw) {
     result.method = bankInfo[2] || '';
     result.plz = bankInfo[3] || '';
     result.city = bankInfo[4] || '';
+
+    // Clearing-/Sonderbank-Filter
+    _loadClearing();
+    if (_checkIBANStatus) {
+      const clearing = _checkIBANStatus(iban);
+      if (clearing.status !== 'OK') {
+        const msg = _getIBANMessage(clearing);
+        result.clearingStatus      = clearing.status;
+        result.clearingBezeichnung = clearing.bezeichnung || '';
+        result.clearingMessage     = { title: msg.title, short: msg.short, detail: msg.detail, hint: msg.hint, icon: msg.icon };
+        if (clearing.status === 'BLOCK') {
+          result.valid = false;
+          result.error = msg.detail;
+        }
+      }
+    }
   }
 
   return result;

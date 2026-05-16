@@ -85,7 +85,7 @@
           ? (isZip ? 'C53 Archiv (.C53 ZIP mit je 1 XML/Werktag)' : 'C53 XML (CAMT.053)')
           : 'STA (MT940)';
         resultEl.innerHTML = statusBox(true, 'Fertig',
-          `<strong>${esc(filename)}</strong> mit ${count} Umsaetzen wurde als <em>${label}</em> heruntergeladen.`);
+          `<strong>${esc(filename)}</strong> mit ${count} Umsätzen wurde als <em>${label}</em> heruntergeladen.`);
       } catch(e) {
         resultEl.innerHTML = statusBox(false, 'Fehler', esc(e.message));
       } finally {

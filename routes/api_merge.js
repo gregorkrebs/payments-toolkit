@@ -1,134 +1,170 @@
-/* api_merge.js - XML merging route */
+/* api_merge.js - Zahlungen zusammenfassen */
 'use strict';
 const express = require('express');
 const router = express.Router();
-const multer = require('multer');
 const { XMLParser } = require('fast-xml-parser');
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
-const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
+const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' });
 
-router.post('/export', upload.array('files', 50), async (req, res) => {
+// POST /api/merge/export
+// Accepts either:
+//   A) Content-Type: application/json  { transactions: [{e2e, valuta, amt, ccy, cdtrNm, cdtrIban, cdtrBic, rmtInf}] }
+//   B) Content-Type: multipart/form-data  (legacy: files[] + optional name/iban/bic/valuta)
+router.post('/export', async (req, res) => {
   try {
-    const files = req.files;
-    if (!files || files.length === 0) {
-      return res.status(400).json({ ok: false, error: 'Keine Dateien hochgeladen' });
-    }
+    let transactions;
+    const now = new Date();
+    const stamp = fmtStamp(now);
 
-    const globalParams = {
-      name: req.body.name,
-      iban: req.body.iban,
-      bic: req.body.bic,
-      valuta: req.body.valuta
-    };
-
-    // Parse all XML files and extract transactions
-    const allTransactions = [];
-    for (const file of files) {
-      try {
-        const xml = file.buffer.toString('utf8');
-        const parsed = parser.parse(xml);
-        // Extract transactions from pain.001 format
-        if (parsed.Document && parsed.Document.CstmrCdtTrfInitn) {
-          const pmtInf = parsed.Document.CstmrCdtTrfInitn.PmtInf;
-          if (Array.isArray(pmtInf)) {
-            pmtInf.forEach(pi => {
-              if (pi.CdtTrfTxInf) {
-                const txs = Array.isArray(pi.CdtTrfTxInf) ? pi.CdtTrfTxInf : [pi.CdtTrfTxInf];
-                allTransactions.push(...txs);
-              }
+    if (req.body && Array.isArray(req.body.transactions)) {
+      // ── Path A: JSON payload from enhanced UI ──
+      transactions = req.body.transactions.map((t, i) => ({
+        e2e:      String(t.e2e || ('EREF' + String(i + 1).padStart(6, '0'))),
+        valuta:   t.valuta || now.toISOString().slice(0, 10),
+        amt:      parseFloat(t.amt) || 0,
+        ccy:      String(t.ccy || 'EUR').slice(0, 3).toUpperCase(),
+        cdtrNm:   String(t.cdtrNm || ''),
+        cdtrIban: String(t.cdtrIban || '').replace(/\s/g, ''),
+        cdtrBic:  String(t.cdtrBic || ''),
+        rmtInf:   String(t.rmtInf || ''),
+      }));
+    } else if (req.files && req.files.length > 0) {
+      // ── Path B: FormData files (legacy) ──
+      const globalParams = { name: req.body.name, iban: req.body.iban, bic: req.body.bic, valuta: req.body.valuta };
+      transactions = [];
+      for (const file of req.files) {
+        try {
+          const txs = extractTransactionsFromXml(file.buffer.toString('utf8'));
+          txs.forEach((tx, i) => {
+            transactions.push({
+              e2e:      tx.e2e || ('EREF' + String(transactions.length + 1).padStart(6, '0')),
+              valuta:   globalParams.valuta || tx.valuta || now.toISOString().slice(0, 10),
+              amt:      tx.amt,
+              ccy:      tx.ccy || 'EUR',
+              cdtrNm:   globalParams.name || tx.cdtrNm,
+              cdtrIban: globalParams.iban || tx.cdtrIban,
+              cdtrBic:  globalParams.bic  || tx.cdtrBic,
+              rmtInf:   tx.rmtInf,
             });
-          } else if (pmtInf && pmtInf.CdtTrfTxInf) {
-            const txs = Array.isArray(pmtInf.CdtTrfTxInf) ? pmtInf.CdtTrfTxInf : [pmtInf.CdtTrfTxInf];
-            allTransactions.push(...txs);
-          }
+          });
+        } catch (e) {
+          // skip unparseable file
         }
-      } catch (e) {
-        console.error('Error parsing file:', file.name, e.message);
       }
+    } else {
+      return res.status(400).json({ ok: false, error: 'Keine Transaktionen oder Dateien uebermittelt' });
     }
 
-    if (allTransactions.length === 0) {
+    if (transactions.length === 0) {
       return res.status(400).json({ ok: false, error: 'Keine Transaktionen gefunden' });
     }
 
-    // Generate merged pain.001.003.03 XML
-    const mergedXml = generateMergedPain001(allTransactions, globalParams);
-
+    const xml = buildPain001(transactions, now);
+    const filename = `CCT_zusammengefasst_${stamp}.xml`;
     res.setHeader('Content-Type', 'application/xml');
-    res.setHeader('Content-Disposition', 'attachment; filename="merged_payment.xml"');
-    res.send(mergedXml);
-  } catch (error) {
-    console.error('Merge error:', error);
-    res.status(500).json({ ok: false, error: error.message });
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(xml);
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-function generateMergedPain001(transactions, params) {
-  const now = new Date();
-  const msgId = `MSG${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
-  
+function fmtStamp(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0') + '_' +
+    String(d.getHours()).padStart(2, '0') +
+    String(d.getMinutes()).padStart(2, '0');
+}
+
+function extractTransactionsFromXml(xmlStr) {
+  const parsed = xmlParser.parse(xmlStr);
+  const doc = parsed.Document || parsed['ns2:Document'] || parsed;
+  const root = doc.CstmrCdtTrfInitn;
+  if (!root) return [];
+
+  const pmtInfs = Array.isArray(root.PmtInf) ? root.PmtInf : (root.PmtInf ? [root.PmtInf] : []);
+  const txs = [];
+  for (const pi of pmtInfs) {
+    const valuta = pi.ReqdExctnDt || '';
+    const raw = Array.isArray(pi.CdtTrfTxInf) ? pi.CdtTrfTxInf : (pi.CdtTrfTxInf ? [pi.CdtTrfTxInf] : []);
+    for (const tx of raw) {
+      const amtEl = tx.Amt?.InstdAmt;
+      const amt = parseFloat(typeof amtEl === 'object' ? amtEl['#text'] : amtEl) || 0;
+      const ccy = typeof amtEl === 'object' ? (amtEl['@_Ccy'] || 'EUR') : 'EUR';
+      txs.push({
+        e2e:      String(tx.PmtId?.EndToEndId || ''),
+        valuta,
+        amt,
+        ccy,
+        cdtrNm:   String(tx.Cdtr?.Nm || ''),
+        cdtrIban: String(tx.CdtrAcct?.Id?.IBAN || ''),
+        cdtrBic:  String(tx.CdtrAgt?.FinInstnId?.BIC || ''),
+        rmtInf:   String(tx.RmtInf?.Ustrd || ''),
+      });
+    }
+  }
+  return txs;
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function buildPain001(transactions, now) {
+  const msgId = 'MERGE' + now.getFullYear() +
+    String(now.getMonth() + 1).padStart(2, '0') +
+    String(now.getDate()).padStart(2, '0') +
+    String(now.getHours()).padStart(2, '0') +
+    String(now.getMinutes()).padStart(2, '0') +
+    String(now.getSeconds()).padStart(2, '0');
+  const total = transactions.reduce((s, t) => s + t.amt, 0).toFixed(2);
+  const valuta = transactions[0].valuta || now.toISOString().slice(0, 10);
+
   let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.003.03" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.003.03"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <CstmrCdtTrfInitn>
     <GrpHdr>
-      <MsgId>${msgId}</MsgId>
-      <CreDtTm>${now.toISOString()}</CreDtTm>
+      <MsgId>${esc(msgId)}</MsgId>
+      <CreDtTm>${now.toISOString().slice(0, 19)}</CreDtTm>
       <NbOfTxs>${transactions.length}</NbOfTxs>
+      <CtrlSum>${total}</CtrlSum>
       <InitgPty>
-        <Nm>${params.name || 'Payments Toolkit'}</Nm>
+        <Nm>Payments Toolkit</Nm>
       </InitgPty>
     </GrpHdr>
     <PmtInf>
-      <PmtInfId>PMTINF-${msgId}</PmtInfId>
+      <PmtInfId>PMTINF-${esc(msgId)}</PmtInfId>
       <PmtMtd>TRF</PmtMtd>
       <NbOfTxs>${transactions.length}</NbOfTxs>
+      <CtrlSum>${total}</CtrlSum>
       <PmtTpInf>
-        <SvcLvl>
-          <Cd>SEPA</Cd>
-        </SvcLvl>
+        <SvcLvl><Cd>SEPA</Cd></SvcLvl>
       </PmtTpInf>
-      <ReqdExctnDt>${params.valuta || now.toISOString().split('T')[0]}</ReqdExctnDt>
-      <Dbtr>
-        <Nm>${params.name || 'DEBITOR NAME'}</Nm>
-      </Dbtr>
-      <DbtrAcct>
-        <Id>
-          <IBAN>${params.iban || 'DE89370400440532013000'}</IBAN>
-        </Id>
-      </DbtrAcct>
-      <DbtrAgt>
-        <FinInstnId>
-          <BIC>${params.bic || 'COBADEFFXXX'}</BIC>
-        </FinInstnId>
-      </DbtrAgt>
+      <ReqdExctnDt>${esc(valuta)}</ReqdExctnDt>
+      <Dbtr><Nm>Sammellauf</Nm></Dbtr>
+      <DbtrAcct><Id><IBAN>DE00000000000000000000</IBAN></Id></DbtrAcct>
+      <DbtrAgt><FinInstnId><BIC>NOTPROVIDED</BIC></FinInstnId></DbtrAgt>
       <ChrgBr>SHAR</ChrgBr>
 `;
 
-  transactions.forEach((tx, idx) => {
+  transactions.forEach(tx => {
     xml += `      <CdtTrfTxInf>
         <PmtId>
-          <EndToEndId>EREF${String(idx+1).padStart(6,'0')}</EndToEndId>
+          <EndToEndId>${esc(tx.e2e)}</EndToEndId>
         </PmtId>
         <Amt>
-          <InstdAmt Ccy="EUR">${tx.Amt?.InstdAmt || '100.00'}</InstdAmt>
+          <InstdAmt Ccy="${esc(tx.ccy)}">${tx.amt.toFixed(2)}</InstdAmt>
         </Amt>
-        <CdtrAgt>
-          <FinInstnId>
-            <BIC>${tx.CdtrAgt?.FinInstnId?.BIC || 'GENODEFFXXX'}</BIC>
-          </FinInstnId>
-        </CdtrAgt>
+        ${tx.cdtrBic ? `<CdtrAgt><FinInstnId><BIC>${esc(tx.cdtrBic)}</BIC></FinInstnId></CdtrAgt>` : ''}
         <Cdtr>
-          <Nm>${tx.Cdtr?.Nm || 'CREDITOR NAME'}</Nm>
+          <Nm>${esc(tx.cdtrNm)}</Nm>
         </Cdtr>
         <CdtrAcct>
-          <Id>
-            <IBAN>${tx.CdtrAcct?.Id?.IBAN || 'DE75512108001234567890'}</IBAN>
-          </Id>
+          <Id><IBAN>${esc(tx.cdtrIban)}</IBAN></Id>
         </CdtrAcct>
-        <RmtInf>
-          <Ustrd>${tx.RmtInf?.Ustrd || 'Payment reference'}</Ustrd>
-        </RmtInf>
+        ${tx.rmtInf ? `<RmtInf><Ustrd>${esc(tx.rmtInf)}</Ustrd></RmtInf>` : ''}
       </CdtTrfTxInf>
 `;
   });
