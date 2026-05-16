@@ -167,9 +167,17 @@
           if (n.includes('IBAN'))             input.value = id.account.iban;
           else if (n.includes('BIC'))         input.value = id.account.bic || 'MARKDEF1100';
           else if (n.includes('_Nm') || n.includes('Name')) input.value = id.fullname || id.fullName || '';
-          // Strukturierte Adressfelder (pain.001.001.09)
-          else if (isV09 && n.includes('StrtNm'))   input.value = id.address ? id.address.street || '' : '';
-          else if (isV09 && n.includes('BldgNb'))   input.value = '';
+          // Strukturierte Adressfelder (pain.001.001.09): Straße und Hausnummer trennen
+          else if (isV09 && n.includes('StrtNm')) {
+            const raw = id.address ? id.address.street || '' : '';
+            const m = raw.match(/^(.*?)\s+(\d+[a-zA-Z]?)$/);
+            input.value = m ? m[1] : raw;
+          }
+          else if (isV09 && n.includes('BldgNb')) {
+            const raw = id.address ? id.address.street || '' : '';
+            const m = raw.match(/^(.*?)\s+(\d+[a-zA-Z]?)$/);
+            input.value = m ? m[2] : '';
+          }
           else if (isV09 && n.includes('PstCd'))    input.value = id.address ? id.address.plz || '' : '';
           else if (isV09 && n.includes('TwnNm'))    input.value = id.address ? id.address.city || '' : '';
           else if (n.includes('Ctry')) {
@@ -182,6 +190,8 @@
           }
           // Kombinierte Adresse (pain.001.001.03)
           else if (!isV09 && n.includes('AdrLine')) input.value = id.address ? id.address.full || '' : '';
+          else if (n === 'PmtInf_PmtInfId')  input.value = 'PMTINF' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+          else if (n === 'GrpHdr_MsgId' && !input.value) input.value = generateMsgId();
           else if (input.type === 'number' && (n.includes('Amt') || n.includes('Amount'))) input.value = (Math.random() * 500 + 10).toFixed(2);
           else if (n.includes('CdtrSchmeId')) input.value = 'DE98ZZZ09999999999';
           else if (n.includes('MndtId'))      input.value = 'MNDT-' + Math.floor(Math.random() * 100000);
@@ -194,12 +204,67 @@
             input.value = d.toISOString().split('T')[0];
           }
         });
+        syncAddressRequired(lastVersion);
       }));
     }
+
+    // Pflichtfelder für Adresse dynamisch aktualisieren wenn ein Adressfeld geändert wird
+    function onAddrChange(e) {
+      const n = (e.target.name || '');
+      const isAddrField = n.includes('StrtNm') || n.includes('BldgNb') || n.includes('PstCd') ||
+                          n.includes('TwnNm')  || n.includes('AdrLine') || n.includes('Ctry');
+      if (isAddrField) syncAddressRequired(lastVersion);
+    }
+    document.getElementById('creator-form').addEventListener('input', onAddrChange);
+    document.getElementById('creator-form').addEventListener('change', onAddrChange);
 
     document.getElementById('creator-preview').style.display = 'none';
     document.getElementById('creator-validate-result').innerHTML = '';
     lastIsValid = false;
+  }
+
+  // Setzt Adressfelder eines Blocks auf required wenn mindestens ein Feld befüllt ist.
+  function syncAddressRequired(version) {
+    const form = document.getElementById('creator-form');
+    if (!form) return;
+    const isV09 = version && version.endsWith('09');
+
+    function applyGroup(root, names) {
+      const inputs = names.map(nm => root.querySelector(`[name="${nm}"]`)).filter(Boolean);
+      if (!inputs.length) return;
+      const hasAny = inputs.some(el => {
+        const v = el.value || '';
+        return v.trim() !== '' && v !== '';
+      });
+      inputs.forEach(el => {
+        el.required = hasAny;
+        const label = el.closest('label');
+        if (!label) return;
+        let mark = label.querySelector('.required-mark');
+        if (hasAny && !mark) {
+          mark = document.createElement('span');
+          mark.className = 'required-mark';
+          mark.textContent = '*';
+          label.insertBefore(mark, label.querySelector('input,select'));
+        } else if (!hasAny && mark) {
+          mark.remove();
+        }
+      });
+    }
+
+    if (isV09) {
+      applyGroup(form, ['PmtInf_Dbtr_StrtNm', 'PmtInf_Dbtr_BldgNb', 'PmtInf_Dbtr_PstCd', 'PmtInf_Dbtr_TwnNm', 'PmtInf_Dbtr_Ctry']);
+    } else {
+      applyGroup(form, ['PmtInf_Dbtr_AdrLine', 'PmtInf_Dbtr_Ctry']);
+    }
+
+    form.querySelectorAll('.tx-block').forEach(block => {
+      if (isV09) {
+        applyGroup(block, ['Tx_Cdtr_StrtNm', 'Tx_Cdtr_BldgNb', 'Tx_Cdtr_PstCd', 'Tx_Cdtr_TwnNm', 'Tx_Cdtr_Ctry']);
+      } else {
+        applyGroup(block, ['Tx_Cdtr_AdrLine', 'Tx_Cdtr_Ctry']);
+      }
+    });
   }
 
   function renderField(f, prefix) {

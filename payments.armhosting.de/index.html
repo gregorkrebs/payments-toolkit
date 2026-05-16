@@ -282,8 +282,8 @@
       <div class="samples-form">
         <label>Format:
           <select id="samples-format">
-            <option valü="sta">STA (MT940)</option>
-            <option valü="c53">C53 (CAMT.053 XML)</option>
+            <option value="sta">STA (MT940)</option>
+            <option value="c53">C53 (CAMT.053 XML)</option>
           </select>
         </label>
         <label>Anzahl Umsaetze (1&ndash;250):
@@ -292,6 +292,9 @@
             <input type="number" id="samples-count-num" min="1" max="250" valü="10" style="width:70px;max-width:70px;flex:none">
           </div>
         </label>
+        <div id="samples-sta-date-row">
+          <label>Datum: <input type="date" id="samples-sta-date"></label>
+        </div>
         <div id="samples-date-row" style="display:none">
           <label>Datum von: <input type="date" id="samples-date-from"></label>
           <label>Datum bis: <input type="date" id="samples-date-to"></label>
@@ -361,7 +364,7 @@
     <!-- ============================================================ MERGE ============================================================ -->
     <section id="page-merge" class="page">
       <h1>Zahlungen zusammenfassen</h1>
-      <p>Mehrere Zahlungsdateien (CCT/CCU) zusammenfassen und als einheitliche pain.001.003.03 exportieren.</p>
+      <p>Mehrere Zahlungsdateien (CCT/CCU) zusammenfassen und als pain.001.001.09 exportieren. Gleiche Auftraggeber-IBAN + Valutadatum werden zu einem PmtInf-Block zusammengefasst.</p>
 
       <div id="merge-upload-area" class="upload-area">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:0.5rem;opacity:0.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -380,6 +383,24 @@
           <thead><tr><th>Dateiname</th><th>Typ</th><th>Transaktionen</th><th>Gesamt (EUR)</th><th></th></tr></thead>
           <tbody id="merge-files-tbody"></tbody>
         </table>
+      </div>
+
+      <!-- Debtor / Auftraggeber -->
+      <div id="merge-debtor-section" style="display:none;margin-top:1.25rem">
+        <h2 style="margin:0 0 0.5rem">Auftraggeber (Debtor)</h2>
+        <p style="font-size:0.8rem;color:var(--tx2);margin-bottom:0.75rem">Wird aus der ersten Datei vorausgefüllt. Pflichtfelder für den Export.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.75rem">
+          <label>Name <span class="req">*</span>
+            <input id="merge-dbtr-nm" type="text" placeholder="Max Mustermann GmbH">
+          </label>
+          <label>IBAN <span class="req">*</span>
+            <input id="merge-dbtr-iban" type="text" placeholder="DE89370400440532013000" style="font-family:monospace">
+            <span id="merge-dbtr-iban-err" style="color:var(--err,#c0392b);font-size:0.75rem;min-height:1em;display:block"></span>
+          </label>
+          <label>BIC
+            <input id="merge-dbtr-bic" type="text" placeholder="COBADEFFXXX" style="font-family:monospace">
+          </label>
+        </div>
       </div>
 
       <!-- Transaction table -->

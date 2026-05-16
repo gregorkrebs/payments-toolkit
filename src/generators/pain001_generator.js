@@ -24,7 +24,7 @@ function buildPstlAdr(ver, data, prefix) {
     const pstCd  = esc(data[`${prefix}PstCd`]  || '');
     const twnNm  = esc(data[`${prefix}TwnNm`]  || '');
     const ctry   = esc(data[`${prefix}Ctry`]   || '');
-    if (!strtNm && !bldgNb && !pstCd && !twnNm && !ctry) return '';
+    if (!strtNm && !bldgNb && !pstCd && !twnNm) return '';
     return `
             <PstlAdr>
               ${strtNm ? `<StrtNm>${strtNm}</StrtNm>` : ''}
@@ -36,7 +36,7 @@ function buildPstlAdr(ver, data, prefix) {
   } else {
     const ctry    = esc(data[`${prefix}Ctry`]    || '');
     const adrLine = esc(data[`${prefix}AdrLine`] || '');
-    if (!ctry && !adrLine) return '';
+    if (!adrLine) return '';
     return `
             <PstlAdr>
               ${ctry    ? `<Ctry>${ctry}</Ctry>`          : ''}

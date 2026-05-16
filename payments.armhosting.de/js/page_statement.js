@@ -40,7 +40,8 @@
     data.statements.forEach((s, i) => {
       const opt = document.createElement('option');
       opt.value = i;
-      opt.textContent = `${s.iban || s.accountId || 'Konto ' + (i+1)} (${s.transactions?.length || 0} Buchungen)`;
+      const label = s.sourceFile || data.filename || ('Konto ' + (i + 1));
+      opt.textContent = `${label} (${s.transactions?.length || 0} Buchungen)`;
       sel.appendChild(opt);
     });
     document.getElementById('statement-controls').style.display = 'flex';

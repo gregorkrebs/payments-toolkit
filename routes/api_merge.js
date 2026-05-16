@@ -16,6 +16,20 @@ router.post('/export', async (req, res) => {
     const now = new Date();
     const stamp = fmtStamp(now);
 
+    // ── Debtor aus Payload lesen ──
+    const dbtr = {
+      nm:   String(req.body.dbtrNm   || '').trim(),
+      iban: String(req.body.dbtrIban || '').replace(/\s/g, '').toUpperCase(),
+      bic:  String(req.body.dbtrBic  || '').trim(),
+    };
+
+    if (!/^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/.test(dbtr.iban)) {
+      return res.status(400).json({ ok: false, error: 'Ungültige oder fehlende Auftraggeber-IBAN.' });
+    }
+    if (!dbtr.nm) {
+      return res.status(400).json({ ok: false, error: 'Auftraggeber-Name fehlt.' });
+    }
+
     if (req.body && Array.isArray(req.body.transactions)) {
       // ── Path A: JSON payload from enhanced UI ──
       transactions = req.body.transactions.map((t, i) => ({
@@ -59,7 +73,15 @@ router.post('/export', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Keine Transaktionen gefunden' });
     }
 
-    const xml = buildPain001(transactions, now);
+    // ── Gruppierung: pro Debtor-IBAN + Valuta-Datum ──
+    const groups = new Map();
+    transactions.forEach(tx => {
+      const key = `${dbtr.iban}|${tx.valuta}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(tx);
+    });
+
+    const xml = buildPain001v09(groups, dbtr, now, stamp);
     const filename = `CCT_zusammengefasst_${stamp}.xml`;
     res.setHeader('Content-Type', 'application/xml');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -111,53 +133,55 @@ function esc(s) {
   return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function buildPain001(transactions, now) {
-  const msgId = 'MERGE' + now.getFullYear() +
-    String(now.getMonth() + 1).padStart(2, '0') +
-    String(now.getDate()).padStart(2, '0') +
-    String(now.getHours()).padStart(2, '0') +
-    String(now.getMinutes()).padStart(2, '0') +
-    String(now.getSeconds()).padStart(2, '0');
-  const total = transactions.reduce((s, t) => s + t.amt, 0).toFixed(2);
-  const valuta = transactions[0].valuta || now.toISOString().slice(0, 10);
+function buildPain001v09(groups, dbtr, now, stamp) {
+  const NS = 'urn:iso:std:iso:20022:tech:xsd:pain.001.001.09';
+  const msgId = 'MERGE' + stamp.replace(/[-_]/g, '');
+  const creDtTm = now.toISOString().slice(0, 19);
 
-  let xml = `<?xml version="1.0" encoding="UTF-8"?>
-<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.003.03"
-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <CstmrCdtTrfInitn>
-    <GrpHdr>
-      <MsgId>${esc(msgId)}</MsgId>
-      <CreDtTm>${now.toISOString().slice(0, 19)}</CreDtTm>
-      <NbOfTxs>${transactions.length}</NbOfTxs>
-      <CtrlSum>${total}</CtrlSum>
-      <InitgPty>
-        <Nm>Payments Toolkit</Nm>
-      </InitgPty>
-    </GrpHdr>
-    <PmtInf>
-      <PmtInfId>PMTINF-${esc(msgId)}</PmtInfId>
+  // Gesamt-Zähler für GrpHdr
+  let totalTxCount = 0;
+  let totalCtrlSum = 0;
+  groups.forEach(txs => {
+    totalTxCount += txs.length;
+    txs.forEach(tx => { totalCtrlSum += tx.amt; });
+  });
+
+  const dbtrBicBlock = dbtr.bic
+    ? `<FinInstnId><BICFI>${esc(dbtr.bic)}</BICFI></FinInstnId>`
+    : `<FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId>`;
+
+  let pmtInfXml = '';
+  let pmtInfIdx = 0;
+  groups.forEach((txs, key) => {
+    const valuta = key.split('|')[1];
+    const grpSum = txs.reduce((s, tx) => s + tx.amt, 0).toFixed(2);
+    pmtInfIdx++;
+    pmtInfXml += `    <PmtInf>
+      <PmtInfId>PMTINF-${esc(stamp)}-${String(pmtInfIdx).padStart(3, '0')}</PmtInfId>
       <PmtMtd>TRF</PmtMtd>
-      <NbOfTxs>${transactions.length}</NbOfTxs>
-      <CtrlSum>${total}</CtrlSum>
+      <NbOfTxs>${txs.length}</NbOfTxs>
+      <CtrlSum>${grpSum}</CtrlSum>
       <PmtTpInf>
         <SvcLvl><Cd>SEPA</Cd></SvcLvl>
       </PmtTpInf>
-      <ReqdExctnDt>${esc(valuta)}</ReqdExctnDt>
-      <Dbtr><Nm>Sammellauf</Nm></Dbtr>
-      <DbtrAcct><Id><IBAN>DE00000000000000000000</IBAN></Id></DbtrAcct>
-      <DbtrAgt><FinInstnId><BIC>NOTPROVIDED</BIC></FinInstnId></DbtrAgt>
+      <ReqdExctnDt><Dt>${esc(valuta)}</Dt></ReqdExctnDt>
+      <Dbtr><Nm>${esc(dbtr.nm)}</Nm></Dbtr>
+      <DbtrAcct><Id><IBAN>${esc(dbtr.iban)}</IBAN></Id></DbtrAcct>
+      <DbtrAgt>${dbtrBicBlock}</DbtrAgt>
       <ChrgBr>SHAR</ChrgBr>
 `;
-
-  transactions.forEach(tx => {
-    xml += `      <CdtTrfTxInf>
+    txs.forEach(tx => {
+      const cdtrBicBlock = tx.cdtrBic
+        ? `<CdtrAgt><FinInstnId><BICFI>${esc(tx.cdtrBic)}</BICFI></FinInstnId></CdtrAgt>`
+        : `<CdtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId></CdtrAgt>`;
+      pmtInfXml += `      <CdtTrfTxInf>
         <PmtId>
           <EndToEndId>${esc(tx.e2e)}</EndToEndId>
         </PmtId>
         <Amt>
           <InstdAmt Ccy="${esc(tx.ccy)}">${tx.amt.toFixed(2)}</InstdAmt>
         </Amt>
-        ${tx.cdtrBic ? `<CdtrAgt><FinInstnId><BIC>${esc(tx.cdtrBic)}</BIC></FinInstnId></CdtrAgt>` : ''}
+        ${cdtrBicBlock}
         <Cdtr>
           <Nm>${esc(tx.cdtrNm)}</Nm>
         </Cdtr>
@@ -167,13 +191,24 @@ function buildPain001(transactions, now) {
         ${tx.rmtInf ? `<RmtInf><Ustrd>${esc(tx.rmtInf)}</Ustrd></RmtInf>` : ''}
       </CdtTrfTxInf>
 `;
+    });
+    pmtInfXml += `    </PmtInf>\n`;
   });
 
-  xml += `    </PmtInf>
-  </CstmrCdtTrfInitn>
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="${NS}">
+  <CstmrCdtTrfInitn>
+    <GrpHdr>
+      <MsgId>${esc(msgId)}</MsgId>
+      <CreDtTm>${creDtTm}</CreDtTm>
+      <NbOfTxs>${totalTxCount}</NbOfTxs>
+      <CtrlSum>${totalCtrlSum.toFixed(2)}</CtrlSum>
+      <InitgPty>
+        <Nm>${esc(dbtr.nm)}</Nm>
+      </InitgPty>
+    </GrpHdr>
+${pmtInfXml}  </CstmrCdtTrfInitn>
 </Document>`;
-
-  return xml;
 }
 
 module.exports = router;

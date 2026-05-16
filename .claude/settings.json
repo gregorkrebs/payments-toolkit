@@ -22,7 +22,21 @@
       "Bash(curl -L -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/124.0.0.0 Safari/537.36\" -H \"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\" -H \"Accept-Language: de-DE,de;q=0.9,en;q=0.8\" -o eu_sepa_participants.xml \"https://www.europeanpaymentscouncil.eu/sites/default/files/participants_export/sct_inst/sct_inst.xml?v=1778238695\")",
       "Bash(node -e \"require\\('./routes/api_tools'\\); console.log\\('api_tools OK'\\);\")",
       "Bash(node -e \"require\\('./routes/api_packer.js'\\); console.log\\('api_packer OK'\\);\")",
-      "Bash(php --syntax-check C:\\\\tmp\\\\check_ibans.php)"
+      "Bash(php --syntax-check C:\\\\tmp\\\\check_ibans.php)",
+      "Bash(curl -s -X POST http://localhost:2549/api/samples/generate -H \"Content-Type: application/json\" -d '{\"format\":\"sta\",\"count\":5,\"iban\":\"DE89370400440532013000\",\"year\":2025}' -o /tmp/test.sta)",
+      "Bash(cat /tmp/test.sta | grep -E ':86:|^\\\\?' | head -40)",
+      "Read(//tmp/**)",
+      "Bash(node -e \"const s=require\\('./payments.armhosting.de/data/sample_transactions.json'\\); console.log\\(JSON.stringify\\(s[0], null, 2\\)\\)\")",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -X POST http://localhost:2549/api/samples/generate -H \"Content-Type: application/json\" -d '{\"format\":\"sta\",\"count\":3,\"iban\":\"DE89370400440532013000\",\"year\":2025}')",
+      "Bash(curl -s -X POST http://localhost:2549/api/samples/generate -H \"Content-Type: application/json\" -d '{\"format\":\"sta\",\"count\":1,\"iban\":\"DE89370400440532013000\",\"year\":2025}')",
+      "PowerShell(Get-Process | Where-Object {$_.Name -match 'node'} | Select-Object Id, Name; netstat -ano | findstr \":2549\")",
+      "PowerShell(Get-WmiObject Win32_Process -Filter \"ProcessId=10044\")",
+      "PowerShell(Get-Process -Id 10044)",
+      "Bash(tasklist)",
+      "Bash(node --check routes/api_samples.js)",
+      "Bash(grep -E \"\\\\.\\(html|htm\\)$\")",
+      "Bash(xargs grep -l \"merge\\\\|Merge\\\\|zusammen\")"
     ]
   }
 }

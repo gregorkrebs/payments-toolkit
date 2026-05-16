@@ -74,7 +74,9 @@ function checkCamt053Schema(xmlStr) {
     if (!acct) {
       errors.push({ path: `${base}/Acct`, message: '<Acct> fehlt' });
     } else {
-      if (!acct.Id?.IBAN) errors.push({ path: `${base}/Acct/Id/IBAN`, message: 'IBAN fehlt' });
+      const hasIban = acct.Id?.IBAN && /^[A-Z]{2}\d{2}[A-Z0-9]{1,30}$/.test(String(acct.Id.IBAN).trim());
+      const hasOthr = acct.Id?.Othr?.Id;
+      if (!hasIban && !hasOthr) errors.push({ path: `${base}/Acct/Id/IBAN`, message: 'IBAN fehlt' });
       if (!acct.Ccy)      errors.push({ path: `${base}/Acct/Ccy`,     message: 'Währung (Ccy) fehlt' });
     }
     if (stmt.ElctrncSeqNb === undefined || stmt.ElctrncSeqNb === null || stmt.ElctrncSeqNb === '') {

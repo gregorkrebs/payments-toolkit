@@ -78,8 +78,8 @@ function parseTag86(raw) {
     result.primanota       = result.fields['10'] || '';
     result.verwendungszweck= [result.fields['20'],result.fields['21'],result.fields['22'],result.fields['23'],result.fields['24'],result.fields['25'],result.fields['26'],result.fields['27'],result.fields['28'],result.fields['29']].filter(Boolean).join('');
     result.blz             = result.fields['30'] || '';
-    result.kontoNr         = result.fields['31'] || '';
-    result.gegenkontoName  = result.fields['32'] || '' + (result.fields['33'] || '');
+    result.kontoNr         = result.fields['31'] || ''; // IBAN (modern) or Kontonummer (legacy)
+    result.gegenkontoName  = (result.fields['32'] || '') + (result.fields['33'] || '');
     result.eref            = result.fields['34'] || '';
   } else {
     result.text = full.slice(3).trim();
@@ -120,7 +120,21 @@ function parseSingleStatement(text) {
     switch (tag) {
       case '20':  stmt.referenceNumber = v; break;
       case '21':  stmt.relatedRef      = v; break;
-      case '25':  { const p = v.split('/'); stmt.iban = p[0].trim(); stmt.currency = p[1] ? p[1].trim() : ''; break; }
+      case '25':  {
+        const p = v.split('/');
+        const part0 = p[0].trim();
+        const part1 = p[1] ? p[1].trim() : '';
+        // German MT940: either IBAN/CCY or BLZ/KONTONR
+        if (/^DE\d{20}$/i.test(part0)) {
+          stmt.iban = part0; stmt.currency = part1;
+        } else if (/^\d{8}$/.test(part0) && /^\d+$/.test(part1)) {
+          // BLZ/Kontonummer format
+          stmt.blz = part0; stmt.accountId = part0 + '/' + part1; stmt.konto = part1; stmt.currency = '';
+        } else {
+          stmt.iban = part0; stmt.currency = part1;
+        }
+        break;
+      }
       case '28C': { const p = v.split('/'); stmt.statementNumber = p[0]; stmt.sequenceNumber = p[1] || ''; break; }
       case '60F': case '60M': stmt.openingBalance   = parseBalance(v); break;
       case '62F': case '62M': stmt.closingBalance   = parseBalance(v); break;
