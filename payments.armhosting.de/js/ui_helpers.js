@@ -127,7 +127,7 @@
   window.createAutofillBtn = function(onFillAction) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.innerHTML = '&#127922; Testdaten';
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg> Testdaten';
     btn.title = 'Generiert realistische Dummy-Daten für dieses Formular';
     btn.style.cssText = 'border: 1px solid #FFD700; color: #b89b00; background: transparent; font-size: 0.85em; padding: 0.2rem 0.6rem; cursor: pointer; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.3rem; margin-left: 0.5rem; transition: background 0.2s;';
     
@@ -138,7 +138,7 @@
       e.preventDefault();
       const originalText = btn.innerHTML;
       try {
-        btn.innerHTML = '&#8987; Lade...';
+        btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:3px;animation:spin 1s linear infinite"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Lade...';
         btn.disabled = true;
         const identity = await window.fetchDummyIdentity();
         await onFillAction(identity);

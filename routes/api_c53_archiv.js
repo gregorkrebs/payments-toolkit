@@ -1,26 +1,36 @@
-{
-  "name": "payments-toolkit",
-  "version": "1.0.0",
-  "description": "SEPA/DTAZV Payments Toolkit fuer MultiCash-Nutzer",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
-    "test": "echo 'test'"
-  },
-  "dependencies": {
-    "adm-zip": "^0.5.10",
-    "cors": "^2.8.5",
-    "ejs": "^3.1.10",
-    "express": "^4.18.2",
-    "fast-xml-parser": "^5.8.0",
-    "ibantools-germany": "^2.2601.0",
-    "multer": "^1.4.5-lts.1",
-    "node-fetch": "^3.3.2",
-    "uuid": "^9.0.0",
-    "xml2js": "^0.6.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
+'use strict';
+/* api_c53_archiv.js — Archivinhalt anzeigen (READ-ONLY, keine Generierung)
+   Parst ein .C53-Archiv (ZIP mit CAMT.053 XML-Dateien) und gibt die Auszugs-Metadaten zurück.
+   Separate Endpunkte vom Packer (api_packer.js), der Dateien erzeugt.
+*/
+const express = require('express');
+const router  = express.Router();
+
+router.post('/info', async (req, res) => {
+  if (!req.file) return res.status(400).json({ ok: false, error: 'Keine Datei hochgeladen' });
+  try {
+    const { parseC53ArchiveXml } = require('../src/parsers/c53_archive_xml_parser');
+    const parsed = await parseC53ArchiveXml(req.file.buffer);
+    if (!parsed.ok) return res.json({ ok: false, error: parsed.error });
+    return res.json({
+      ok: true,
+      format: parsed.format || 'C53-ARCHIVE',
+      version: parsed.version,
+      stmtCount: parsed.stmtCount,
+      sourceFiles: parsed.sourceFiles || [],
+      statements: (parsed.statements || []).map(s => ({
+        iban:    s.iban,
+        ccy:     s.ccy,
+        seqNb:   s.seqNb,
+        from:    s.from,
+        to:      s.to,
+        txCount: (s.transactions || []).length,
+        balance: s.closingBalance,
+      })),
+    });
+  } catch(e) {
+    return res.status(500).json({ ok: false, error: e.message });
   }
-}
+});
+
+module.exports = router;

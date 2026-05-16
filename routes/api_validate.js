@@ -1,7 +1,11 @@
 'use strict';
-const router = require('express').Router();
+const express = require('express');
+const router  = express.Router();
+const xml2js  = require('xml2js');
 const { validatePainXml, detectNamespace } = require('../src/validators/pain_validator');
 const { validateDtazv }  = require('../src/validators/dtazv_validator');
+
+const SEPA_TEXT_REGEX = /^[A-Za-z0-9\/?:().,'+\- ÄÖÜäöüß]*$/;
 
 // Detect file type from content/extension
 function detectFormat(buf, filename) {
@@ -97,5 +101,172 @@ router.post('/', async (req, res) => {
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
+
+// ── POST /api/validate/apply-edits ──────────────────────────────────────────
+// Body: JSON { xml: string, edits: [{path, value}] }
+// Parses PAIN-XML, applies field edits by path, rebuilds and returns modified XML.
+router.post('/apply-edits', async (req, res) => {
+  const { xml, edits } = req.body || {};
+  if (!xml || typeof xml !== 'string') return res.status(400).json({ ok: false, error: 'xml fehlt' });
+  if (!Array.isArray(edits) || edits.length === 0) return res.status(400).json({ ok: false, error: 'Keine Änderungen übergeben' });
+
+  const version = detectNamespace(xml);
+  if (!version) return res.status(400).json({ ok: false, error: 'Unbekanntes PAIN-Format in XML' });
+
+  let parsed;
+  try {
+    parsed = await xml2js.parseStringPromise(xml, {
+      explicitCharkey: true, explicitArray: true, mergeAttrs: false, charkey: '_', attrkey: '$',
+    });
+  } catch(e) {
+    return res.status(400).json({ ok: false, error: `XML-Parsefehler: ${e.message}` });
+  }
+
+  const rootKey = version.startsWith('pain.001') ? 'CstmrCdtTrfInitn'
+    : version.startsWith('pain.008') ? 'CstmrDrctDbtInitn'
+    : version.startsWith('pain.002') ? 'CstmrPmtStsRpt'
+    : null;
+  if (!rootKey || !parsed.Document || !parsed.Document[rootKey]) {
+    return res.status(400).json({ ok: false, error: `Root-Element für ${version} nicht gefunden` });
+  }
+
+  const failures = [];
+  for (const { path, value } of edits) {
+    try {
+      const v = String(value);
+      validateEditValue(path, v);
+      applyEditPath(parsed.Document[rootKey][0], path, v);
+    } catch(e) {
+      failures.push(`${path}: ${e.message}`);
+    }
+  }
+  if (failures.length > 0) return res.status(400).json({ ok: false, error: failures.join('; ') });
+
+  // AdrLine entfernen wo strukturierte Felder vorhanden sind (03→09-Konvertierung)
+  cleanupAdrLine(parsed.Document[rootKey][0]);
+
+  const builder = new xml2js.Builder({
+    xmldec: { version: '1.0', encoding: 'UTF-8' },
+    renderOpts: { pretty: true, indent: '  ', newline: '\n' },
+    charkey: '_', attrkey: '$', headless: false,
+  });
+  const newXml = builder.buildObject(parsed);
+
+  // Always validate after edits and before download.
+  const recheck = await validatePainXml(newXml);
+  if (!recheck.ok) {
+    return res.status(422).json({
+      ok: false,
+      error: 'Die geänderte Datei ist nicht valide. Bitte Fehler korrigieren.',
+      issues: recheck.issues || [],
+      errors: recheck.errors || [],
+      warnings: recheck.warnings || [],
+      meta: recheck.meta || {},
+      missingFields: collectMissingFields(recheck.issues || []),
+    });
+  }
+
+  const ts = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '');
+  res.setHeader('Content-Type', 'application/xml');
+  res.setHeader('Content-Disposition', `attachment; filename="${version.replace(/\./g,'_')}_edited_${ts}.xml"`);
+  res.send(newXml);
+});
+
+// Navigate parsed xml2js tree by dot-notation path (e.g. "PmtInf[0].Dbtr.Nm")
+// and set the leaf value. All elements assumed to be arrays (explicitArray:true).
+// Leaf elements are created (upsert) if they don't exist yet.
+function applyEditPath(root, path, value) {
+  const segs = path.split('.');
+  let cur = root;
+  for (let i = 0; i < segs.length - 1; i++) {
+    const m = segs[i].match(/^(\w+)\[(\d+)\]$/);
+    const key = m ? m[1] : segs[i];
+    const idx = m ? parseInt(m[2], 10) : 0;
+    if (!cur[key] || cur[key][idx] === undefined) throw new Error(`Pfad nicht gefunden bei '${segs[i]}'`);
+    cur = cur[key][idx];
+  }
+  const last = segs[segs.length - 1];
+  const lm = last.match(/^(\w+)\[(\d+)\]$/);
+  const lkey = lm ? lm[1] : last;
+  const lidx = lm ? parseInt(lm[2], 10) : 0;
+
+  // Element noch nicht vorhanden → anlegen (upsert für Adressfelder wie StrtNm etc.)
+  if (!cur[lkey] || cur[lkey][lidx] === undefined) {
+    if (!cur[lkey]) cur[lkey] = [];
+    cur[lkey][lidx] = value;
+    return;
+  }
+
+  const leaf = cur[lkey][lidx];
+  if (leaf !== null && typeof leaf === 'object') {
+    leaf._ = value;
+  } else {
+    cur[lkey][lidx] = value;
+  }
+}
+
+// Entfernt AdrLine aus jedem PstlAdr-Knoten, der bereits strukturierte Felder hat.
+// Wird nach apply-edits aufgerufen, damit AdrLine→StrtNm/TwnNm/PstCd-Konvertierung atomar klappt.
+function cleanupAdrLine(node) {
+  if (!node || typeof node !== 'object') return;
+  const STRUCTURED = ['StrtNm', 'BldgNb', 'PstCd', 'TwnNm'];
+  for (const val of Object.values(node)) {
+    const arr = Array.isArray(val) ? val : [val];
+    for (const item of arr) {
+      if (!item || typeof item !== 'object') continue;
+      if (Array.isArray(item.PstlAdr)) {
+        item.PstlAdr.forEach(adr => {
+          if (adr && STRUCTURED.some(k => adr[k]) && adr.AdrLine) delete adr.AdrLine;
+        });
+      }
+      cleanupAdrLine(item);
+    }
+  }
+}
+
+function validateEditValue(path, value) {
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(value)) {
+    throw new Error('Ungültige Steuerzeichen erkannt');
+  }
+  if (/[<>]/.test(value)) {
+    throw new Error('Winkelklammern sind in Feldwerten nicht erlaubt');
+  }
+
+  const isTextField = /\.Nm$|\.Ustrd$|\.AdrLine$|\.StrtNm$|\.TwnNm$|\.PstCd$/.test(path);
+  if (isTextField && !SEPA_TEXT_REGEX.test(value)) {
+    throw new Error('Ungültige Zeichen für SEPA-Textfeld');
+  }
+
+  if (/\.Nm$/.test(path) && value.length > 70) {
+    throw new Error('Name zu lang (max. 70 Zeichen)');
+  }
+  if (/\.Ustrd$/.test(path) && value.length > 140) {
+    throw new Error('Verwendungszweck zu lang (max. 140 Zeichen)');
+  }
+  if (/\.MsgId$|\.PmtInfId$|\.EndToEndId$/.test(path) && value.length > 35) {
+    throw new Error('Kennung zu lang (max. 35 Zeichen)');
+  }
+}
+
+function collectMissingFields(issues) {
+  const seen = new Set();
+  const rows = [];
+  issues.forEach(i => {
+    if (!i || !i.fieldPath || i.severity !== 'error') return;
+    if (seen.has(i.fieldPath)) return;
+    seen.add(i.fieldPath);
+
+    // AdrLine-Fehler: raw-Adresstext mitliefern damit Frontend parsen kann
+    if (/\.AdrLine$/.test(i.fieldPath)) {
+      rows.push({ path: i.fieldPath, message: i.message || '', rawValue: i.value || '', isAdrLine: true });
+      return;
+    }
+
+    if (!/fehlt|Pflicht/i.test(i.message || '')) return;
+    if (!/\.TwnNm$|\.BICFI$|\.BIC$|\.Ctry$|\.StrtNm$|\.PstCd$/.test(i.fieldPath)) return;
+    rows.push({ path: i.fieldPath, message: i.message || '', rawValue: i.value || '' });
+  });
+  return rows;
+}
 
 module.exports = router;

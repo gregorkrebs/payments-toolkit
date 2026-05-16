@@ -65,8 +65,8 @@
 
     let html = renderSummary([
       { label: 'IBAN / Konto',    value: stmt.iban || stmt.accountId || '—' },
-      { label: 'Waehrung',        value: stmt.currency || '—' },
-      { label: 'Eroeffnungssaldo',value: openBal  ? (openBal.indicator + ' ' + fmtAmt(openBal.amount, openBal.currency)) : '—' },
+      { label: 'Währung',        value: stmt.currency || '—' },
+      { label: 'Erüffnungssaldo',value: openBal  ? (openBal.indicator + ' ' + fmtAmt(openBal.amount, openBal.currency)) : '—' },
       { label: 'Schlusssaldo',    value: closeBal ? (closeBal.indicator + ' ' + fmtAmt(closeBal.amount, closeBal.currency)) : '—' },
       { label: 'Buchungen',       value: txs.length },
       { label: 'Gutschriften ∑',  value: fmtAmt(creditSum), cls: 'amt-credit' },
@@ -139,9 +139,9 @@
     doc.setFontSize(14);
     doc.text('Kontoauszug', 14, 15);
     doc.setFontSize(10);
-    doc.text(`IBAN: ${ibanStr}   Waehrung: ${stmt.currency || '—'}`, 14, 22);
+    doc.text(`IBAN: ${ibanStr}   Währung: ${stmt.currency || '—'}`, 14, 22);
     const balLine = [
-      openBal  ? `Eroeffnungssaldo: ${openBal.indicator}  ${openBal.amount?.toFixed(2)}  ${openBal.currency}` : '',
+      openBal  ? `Erüffnungssaldo: ${openBal.indicator}  ${openBal.amount?.toFixed(2)}  ${openBal.currency}` : '',
       closeBal ? `Schlusssaldo: ${closeBal.indicator}  ${closeBal.amount?.toFixed(2)}  ${closeBal.currency}` : '',
     ].filter(Boolean).join('     ');
     if (balLine) doc.text(balLine, 14, 28);
